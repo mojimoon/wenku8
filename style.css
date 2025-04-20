@@ -117,17 +117,26 @@ body.dark-mode {
 @media screen and (max-width: 768px) {
     table {
         font-size: 0.8rem;
+        display: block; /* 允许表格在小屏幕上水平滚动 */
+        overflow-x: auto;
     }
-}
-
-@media screen and (max-width: 768px) {
+    th, td {
+        padding: 4px 6px;
+    }
     .alternate-title {
         display: block;
         margin-top: 4px;
         font-size: 0.7rem;
     }
+    .novel-title a {
+        display: block;
+    }
+    .mobile-hidden {
+        display: none;
+    }
 }
 
+/* --- 夜间样式 -- */
 body.dark-mode h1 {
     color: #f8f9fa;
 }

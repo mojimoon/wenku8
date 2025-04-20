@@ -317,7 +317,7 @@ def generate_html_file(data, output_filename="index.html"):
                 <th>小说</th>
                 <th>蓝奏链接</th>
                 <th>密码</th>
-                <th>最新卷</th>
+                <th><span class="mobile-hidden">最新</span>卷</th>
                 <th>更新日期</th>
             </tr>
         </thead>

@@ -156,6 +156,34 @@ def purify(text):
     text = re.sub(r'[^\u4e00-\u9fa5a-zA-Z0-9]', '', text)
     return text
 
+CN_NUM = {
+    '零': 0, '一': 1, '二': 2, '三': 3, '四': 4,
+    '五': 5, '六': 6, '七': 7, '八': 8, '九': 9,
+    '十': 10
+}
+
+def chinese_to_arabic(cn: str) -> int:
+    if cn == '十':
+        return 10
+    elif cn.startswith('十'):
+        return 10 + CN_NUM.get(cn[1], 0)
+    elif cn.endswith('十'):
+        return CN_NUM.get(cn[0], 0) * 10
+    elif '十' in cn:
+        parts = cn.split('十')
+        return CN_NUM.get(parts[0], 0) * 10 + CN_NUM.get(parts[1], 0)
+    else:
+        return CN_NUM.get(cn, 0)
+
+def replace_chinese_numerals(s: str) -> str:
+    pattern = r'[第]*([一二三四五六七八九十零]{1,3})[卷]*'
+    match = re.search(pattern, s)
+    if match:
+        cn_num = match.group(1)
+        arabic_num = chinese_to_arabic(cn_num)
+        return s.replace(cn_num, f' {arabic_num} ')
+    return s
+
 def match_summary():
     csv_records = []
     with open(OUTPUT_CSV, 'r', encoding='utf-8') as csvfile:
@@ -165,9 +193,9 @@ def match_summary():
         for row in reader:
             if row[3].endswith('2751.htm'):
                 patched_name = '我们不可能成为恋人！绝对不行。（※似乎可行？)(我怎么可能成为你的恋人，不行不行！)'
-                csv_records.append([row[0], purify(patched_name), patched_name, row[3]])
+                csv_records.append([replace_chinese_numerals(row[0]), purify(patched_name), patched_name, row[3]])
             else:
-                csv_records.append([row[0], purify(row[2]), row[2], row[3]])
+                csv_records.append([replace_chinese_numerals(row[0]), purify(row[2]), row[2], row[3]])
         # print(f"CSV records: {len(csv_records)}")
     
     latest_records = []
@@ -180,6 +208,9 @@ def match_summary():
                 latest_records.append([parts[0], parts[1], parts[2], patched_name])
             elif parts[1] == 'b04e85ohi':
                 patched_name = '密室中的霍尔顿'
+                latest_records.append([parts[0], parts[1], parts[2], patched_name])
+            elif parts[1] == 'b00g38fzcb':
+                patched_name = '某科学的超电磁炮'
                 latest_records.append([parts[0], parts[1], parts[2], patched_name])
             else:
                 latest_records.append(parts)
@@ -222,7 +253,7 @@ def create_html_table(data):
     rows_html = ""
     for item in data:
         novel_title = item.get("novel_title", "N/A")
-        novel_link = item.get("novel_link", "#")
+        novel_link = item.get("novel_link", "https://www.wenku8.net/")
         post_title = item.get("post_title", "N/A")
         updated = item.get("updated", "N/A")
         url = item.get("url", "")
@@ -244,16 +275,22 @@ def create_html_table(data):
 def generate_html_file(data, output_filename="index.html"):
     table_content = create_html_table(data)
 
+    today = time.strftime("%Y-%m-%d", time.localtime())
+
     html_template = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>小说列表</title>
+    <title>轻小说文库 EPUB 下载</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>小说列表</h1>
+    <h1>轻小说文库 EPUB 下载</h1>
+    <h3>By <a href="https://github.com/mojimoon">mojimoon</a> | <a href="https://github.com/mojimoon/wenku8">Star me on GitHub</a> | 最后更新：{today}</h3>
+    <span>
+        所有内容均收集于网络，本站仅做整理工作。特别感谢 EPUB 制作者 @<a href="https://www.wenku8.net/modules/article/reviewslist.php?t=1&keyword=8691&charset=gbk">酷儿加冰</a>。
+    </span>
 
     <div class="controls">
         <input type="text" id="searchInput" placeholder="搜索">

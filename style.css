@@ -13,6 +13,10 @@ h1 {
     color: #343a40;
 }
 
+h3 {
+    text-align: right;
+}
+
 .controls {
     margin-bottom: 20px;
     display: flex;
@@ -83,6 +87,10 @@ a {
 a:hover {
     color: #0056b3;
     text-decoration: underline;
+}
+
+.novel-title {
+    width: 60%;
 }
 
 /* 用于隐藏搜索结果的类 */

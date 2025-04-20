@@ -7,6 +7,7 @@ from urllib.parse import urljoin
 import sys
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
+import re
 
 # Configuration
 BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
@@ -23,6 +24,7 @@ HEADERS = {
 }
 OUTPUT_CSV = 'summary.csv'
 DOMAIN = 'https://www.wenku8.net'
+LATEST_TXT = 'latest.txt'
 
 retry_strategy = Retry(
     total=5,
@@ -35,6 +37,29 @@ session.mount('http://', adapter)
 session.mount('https://', adapter)
 session.headers.update(HEADERS)
 
+def get_latest_url(post_link):
+    resp = session.get(post_link, timeout=10)
+    resp.raise_for_status()
+    resp.encoding = 'gbk'
+
+    # <a href="https://paste.gentoo.zip" target="_blank">https://paste.gentoo.zip</a>/EsX5Kx8V
+    match = re.search(r'<a href="([^"]+)" target="_blank">([^<]+)</a>(/[^<]+)', resp.text)
+    link = match.group(1) + match.group(3) if match else None
+
+    print(f"Latest link found: {link}")
+
+    return link
+
+def get_latest(url):
+    resp = session.get(url, timeout=10)
+    resp.raise_for_status()
+    resp.encoding = 'utf-8'
+
+    with open(LATEST_TXT, 'w', encoding='utf-8') as f:
+        f.write(resp.text)
+
+    print(f"Latest file saved to {LATEST_TXT}")
+
 def get_last_page():
     """Fetch the first page and parse the total number of pages."""
     resp = session.get(BASE_URL, params=PARAMS)
@@ -42,7 +67,6 @@ def get_last_page():
     soup = BeautifulSoup(resp.text, 'html.parser')
     last = soup.find('a', class_='last')
     return int(last.text) if last else 1
-
 
 def parse_page(page_num):
     """Fetch and parse one page of reviews, returning a list of entries."""
@@ -56,7 +80,7 @@ def parse_page(page_num):
     rows = table.find_all('tr')[1:]  # skip header row
 
     entries = []
-    for tr in rows:
+    for (i, tr) in enumerate(rows):
         cols = tr.find_all('td')
         if len(cols) < 2:
             continue
@@ -83,7 +107,6 @@ def parse_page(page_num):
         novel_title = '"' + novel_title + '"'
         entries.append([post_title, post_link, novel_title, novel_link])
     return entries
-
 
 def main():
     total_pages = get_last_page()
@@ -119,9 +142,11 @@ def resume(last, tot):
     print(f"Done. Data saved to {OUTPUT_CSV}")
 
 if __name__ == '__main__':
-    if len(sys.argv) == 3:
-        last_page = int(sys.argv[1])
-        total_pages = int(sys.argv[2])
-        resume(last_page, total_pages)
-    else:
-        main()
+    # if len(sys.argv) == 3:
+    #     last_page = int(sys.argv[1])
+    #     total_pages = int(sys.argv[2])
+    #     resume(last_page, total_pages)
+    # else:
+    #     main()
+    
+    get_latest(get_latest_url('https://www.wenku8.net/modules/article/reviewshow.php?rid=295996'))

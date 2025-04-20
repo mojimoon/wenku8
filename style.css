@@ -127,6 +127,7 @@ body.dark-mode {
     .alternate-title {
         display: block;
         margin-top: 4px;
+        margin-left: 0;
         font-size: 0.7rem;
     }
     .novel-title a {

@@ -310,9 +310,9 @@ def generate_html_file(data, output_filename="index.html"):
     <span class="alternate-title">蓝奏链接前缀均为 https://wwyt.lanzov.com/</span>
 
     <div class="controls">
+        <button id="themeToggle">日夜</button>
         <input type="text" id="searchInput" placeholder="搜索">
         <button id="randomButton">随机</button>
-        <button id="themeToggle">日夜</button>
     </div>
 
     <table>
@@ -348,12 +348,12 @@ def html():
 # END HTML generation
 
 if __name__ == '__main__':
-    # if len(sys.argv) == 3:
-    #     last_page = int(sys.argv[1])
-    #     total_pages = int(sys.argv[2])
-    #     resume(last_page, total_pages)
-    # else:
-    #     scrape()
+    if len(sys.argv) == 3:
+        last_page = int(sys.argv[1])
+        total_pages = int(sys.argv[2])
+        resume(last_page, total_pages)
+    else:
+        scrape()
 
-    # match_summary()
+    match_summary()
     html()

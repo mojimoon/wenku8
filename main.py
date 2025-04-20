@@ -204,17 +204,20 @@ def match_summary():
         for line in lines[2:]:
             parts = line.strip().split()
             if parts[1] == 'b04e6koyd':
-                # patched_name = '吹响吧！上低音号：欢迎加入北宇治高中管乐社 短篇'
-                # latest_records.append([parts[0], parts[1], parts[2], patched_name])
                 continue
             elif parts[1] == 'b04e85ohi':
-                patched_name = '密室中的霍尔顿'
-                latest_records.append([parts[0], parts[1], parts[2], patched_name])
+                _name = '密室中的霍尔顿'
             elif parts[1] == 'b00g38fzcb':
-                patched_name = '某科学的超电磁炮'
-                latest_records.append([parts[0], parts[1], parts[2], patched_name])
+                _name = '某科学的超电磁炮'
+            elif parts[1] == 'b04esk38d':
+                _name = 'Lycoris Recoil 莉可丽丝 Ordinary days'
+            elif parts[1] == 'b00g2u013e':
+                _name = 'Tier1姐妹'
+            # elif '_' in parts[3]:
+            #     _name = parts[3].replace('_', ' ')
             else:
-                latest_records.append(parts)
+                _name = parts[3]
+            latest_records.append([parts[0], parts[1], parts[2], _name])
     
     output = []
     for latest in latest_records:
@@ -344,12 +347,12 @@ def html():
 # END HTML generation
 
 if __name__ == '__main__':
-    if len(sys.argv) == 3:
-        last_page = int(sys.argv[1])
-        total_pages = int(sys.argv[2])
-        resume(last_page, total_pages)
-    else:
-        scrape()
+    # if len(sys.argv) == 3:
+    #     last_page = int(sys.argv[1])
+    #     total_pages = int(sys.argv[2])
+    #     resume(last_page, total_pages)
+    # else:
+    #     scrape()
 
     match_summary()
     html()

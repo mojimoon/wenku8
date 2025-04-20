@@ -160,7 +160,11 @@ def match_summary():
         lines = lines[1:-1]
         reader = csv.reader(lines)
         for row in reader:
-            csv_records.append([row[0], purify(row[2]), row[2], row[3]])
+            if row[3].endswith('2751.htm'):
+                patched_name = '我们不可能成为恋人！绝对不行。（※似乎可行？)(我怎么可能成为你的恋人，不行不行！)'
+                csv_records.append([row[0], purify(patched_name), patched_name, row[3]])
+            else:
+                csv_records.append([row[0], purify(row[2]), row[2], row[3]])
         # print(f"CSV records: {len(csv_records)}")
     
     latest_records = []
@@ -168,7 +172,14 @@ def match_summary():
         lines = f.readlines()
         for line in lines[2:]:
             parts = line.strip().split()
-            latest_records.append(parts)
+            if parts[1] == 'b04e6koyd':
+                patched_name = '吹响吧！上低音号：欢迎加入北宇治高中管乐社 短篇'
+                latest_records.append([parts[0], parts[1], parts[2], patched_name])
+            elif parts[1] == 'b04e85ohi':
+                patched_name = '密室中的霍尔顿'
+                latest_records.append([parts[0], parts[1], parts[2], patched_name])
+            else:
+                latest_records.append(parts)
     
     output = []
     for latest in latest_records:
@@ -198,16 +209,17 @@ def match_summary():
             })
 
     with open(OUTPUT_JSON, 'w', encoding='utf-8') as f:
-        json.dump(output, f, ensure_ascii=False, indent=4)
+        # minimal JSON output
+        json.dump(output, f, ensure_ascii=False, separators=(',', ':'))
     print(f"Matched summary saved to {OUTPUT_JSON}")
 
 if __name__ == '__main__':
-    # if len(sys.argv) == 3:
-    #     last_page = int(sys.argv[1])
-    #     total_pages = int(sys.argv[2])
-    #     resume(last_page, total_pages)
-    # else:
-    #     main()
+    if len(sys.argv) == 3:
+        last_page = int(sys.argv[1])
+        total_pages = int(sys.argv[2])
+        resume(last_page, total_pages)
+    else:
+        main()
 
     match_summary()
     

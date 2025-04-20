@@ -192,7 +192,7 @@ def match_summary():
         reader = csv.reader(lines)
         for row in reader:
             if row[3].endswith('2751.htm'):
-                patched_name = '我们不可能成为恋人！绝对不行。（※似乎可行？)(我怎么可能成为你的恋人，不行不行！)'
+                patched_name = '我们不可能成为恋人！绝对不行。（※似乎可行？）(我怎么可能成为你的恋人，不行不行！)'
                 csv_records.append([replace_chinese_numerals(row[0]), purify(patched_name), patched_name, row[3]])
             else:
                 csv_records.append([replace_chinese_numerals(row[0]), purify(row[2]), row[2], row[3]])
@@ -275,7 +275,7 @@ def create_html_table(data):
 
         rows_html += f"""
         <tr>
-            <td class="novel-title"><a href="{novel_link}" target="_blank">{novel_title}</a>{novel_alternate_title and "<span class='alternate-title'>  " + novel_alternate_title + "</span>" or ""}</td>
+            <td class="novel-title"><a href="{novel_link}" target="_blank">{novel_title}</a>{novel_alternate_title and "<span class='alternate-title'>" + novel_alternate_title + "</span>" or ""}</td>
             <td><a href="{lanzou_link}" target="_blank">{lanzou_text}</a></td>
             <td>{pwd}</td>
             <td>{post_title}</td>

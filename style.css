@@ -102,6 +102,7 @@ a:hover {
 .alternate-title {
     color: #6c757d;
     font-size: 0.85rem;
+    margin-left: 10px;
 }
 
 .hidden {

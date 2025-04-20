@@ -12,22 +12,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
         for (let i = 0; i < tableRows.length; i++) {
             const row = tableRows[i];
-            // 获取第一列（小说标题列）的文本内容
             const titleCell = row.getElementsByTagName('td')[0];
             if (titleCell) {
                 const titleText = titleCell.textContent || titleCell.innerText;
-                // 检查标题是否包含搜索词
                 if (titleText.toLowerCase().includes(searchTerm)) {
-                    row.classList.remove('hidden'); // 显示匹配行
+                    row.classList.remove('hidden');
                 } else {
-                    row.classList.add('hidden'); // 隐藏不匹配行
+                    row.classList.add('hidden'); 
                 }
             }
         }
     });
 
     // --- 日间/夜间模式切换 ---
-    // 检查本地存储中是否有主题偏好
     const currentTheme = localStorage.getItem('theme');
     if (currentTheme === 'dark') {
         body.classList.add('dark-mode');

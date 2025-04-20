@@ -204,8 +204,9 @@ def match_summary():
         for line in lines[2:]:
             parts = line.strip().split()
             if parts[1] == 'b04e6koyd':
-                patched_name = '吹响吧！上低音号：欢迎加入北宇治高中管乐社 短篇'
-                latest_records.append([parts[0], parts[1], parts[2], patched_name])
+                # patched_name = '吹响吧！上低音号：欢迎加入北宇治高中管乐社 短篇'
+                # latest_records.append([parts[0], parts[1], parts[2], patched_name])
+                continue
             elif parts[1] == 'b04e85ohi':
                 patched_name = '密室中的霍尔顿'
                 latest_records.append([parts[0], parts[1], parts[2], patched_name])
@@ -260,14 +261,25 @@ def create_html_table(data):
         pwd = item.get("pwd", "N/A")
         lanzou_link = f"https://wwyt.lanzov.com/{url}" if url else "#"
         lanzou_text = url if url else "N/A"
+        novel_alternate_title = None
+        if novel_title[-1] == ')': # 半角括号
+            last_bracket = novel_title.rfind('(')
+            novel_alternate_title = novel_title[last_bracket+1:-1]
+            novel_title = novel_title[:last_bracket]
+        # if len(post_title) > 2 and post_title[0] == '第' and post_title[-1] == '卷':
+        #     post_title = post_title[1:-1]
+        if re.search(r'第 \S+ 卷', post_title):
+            post_title = re.sub(r'第 (\S+) 卷', r'\1', post_title)
+        # https://www.wenku8.net/book/2751.htm -> https://www.wenku8.net/novel/2/2751/index.htm
+        # online_read_link = re.sub(r'book/(\d+).htm', r'novel/2/\1/index.htm', novel_link)
 
         rows_html += f"""
         <tr>
-            <td class="novel-title"><a href="{novel_link}" target="_blank">{novel_title}</a></td>
-            <td>{post_title}</td>
-            <td>{updated}</td>
+            <td class="novel-title"><a href="{novel_link}" target="_blank">{novel_title}</a>{novel_alternate_title and "<span class='alternate-title'>  " + novel_alternate_title + "</span>" or ""}</td>
             <td><a href="{lanzou_link}" target="_blank">{lanzou_text}</a></td>
             <td>{pwd}</td>
+            <td>{post_title}</td>
+            <td>{updated}</td>
         </tr>
         """
     return rows_html
@@ -287,10 +299,9 @@ def generate_html_file(data, output_filename="index.html"):
 </head>
 <body>
     <h1>轻小说文库 EPUB 下载</h1>
-    <h3>By <a href="https://github.com/mojimoon">mojimoon</a> | <a href="https://github.com/mojimoon/wenku8">Star me on GitHub</a> | 最后更新：{today}</h3>
-    <span>
-        所有内容均收集于网络，本站仅做整理工作。特别感谢 EPUB 制作者 @<a href="https://www.wenku8.net/modules/article/reviewslist.php?t=1&keyword=8691&charset=gbk">酷儿加冰</a>。
-    </span>
+    <h3>By <a href="https://github.com/mojimoon">mojimoon</a> | <a href="https://github.com/mojimoon/wenku8">Star me</a> | {today}</h3>
+    <span>所有内容均收集于网络、仅供学习交流使用，本站仅作整理工作。特别感谢 EPUB 制作者 @<a href="https://www.wenku8.net/modules/article/reviewslist.php?t=1&keyword=8691&charset=gbk">酷儿加冰</a>。</span>
+    <span class="alternate-title">蓝奏链接前缀为 https://wwyt.lanzov.com/</span>
 
     <div class="controls">
         <input type="text" id="searchInput" placeholder="搜索">
@@ -301,10 +312,10 @@ def generate_html_file(data, output_filename="index.html"):
         <thead>
             <tr>
                 <th>小说</th>
-                <th>最新卷</th>
-                <th>更新日期</th>
                 <th>蓝奏链接</th>
                 <th>密码</th>
+                <th>最新卷</th>
+                <th>更新日期</th>
             </tr>
         </thead>
         <tbody id="novelTableBody">

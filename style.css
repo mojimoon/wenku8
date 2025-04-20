@@ -8,6 +8,12 @@ body {
     line-height: 1.6;
 }
 
+@media screen and (max-width: 768px) {
+    body {
+        margin: 10px;
+    }
+}
+
 h1 {
     text-align: center;
     color: #343a40;
@@ -23,7 +29,7 @@ h3 {
     justify-content: space-between;
     align-items: center;
     flex-wrap: wrap; /* 允许换行 */
-    gap: 10px; /* 控件之间的间隙 */
+    gap: 10px;
 }
 
 #searchInput {
@@ -32,7 +38,7 @@ h3 {
     border-radius: 4px;
     font-size: 1rem;
     flex-grow: 1; /* 允许搜索框伸展 */
-    min-width: 200px; /* 最小宽度 */
+    min-width: 200px;
 }
 
 #themeToggle {
@@ -93,15 +99,33 @@ a:hover {
     width: 60%;
 }
 
-/* 用于隐藏搜索结果的类 */
+.alternate-title {
+    color: #6c757d;
+    font-size: 0.85rem;
+}
+
 .hidden {
     display: none;
 }
 
 /* --- 夜间模式 --- */
 body.dark-mode {
-    background-color: #1a1a1a; /* 更深的背景 */
-    color: #e0e0e0; /* 浅灰色文字 */
+    background-color: #1a1a1a;
+    color: #e0e0e0;
+}
+
+@media screen and (max-width: 768px) {
+    table {
+        font-size: 0.8rem;
+    }
+}
+
+@media screen and (max-width: 768px) {
+    .alternate-title {
+        display: block;
+        margin-top: 4px;
+        font-size: 0.7rem;
+    }
 }
 
 body.dark-mode h1 {
@@ -115,7 +139,7 @@ body.dark-mode .controls #searchInput {
 }
 
 body.dark-mode .controls #themeToggle {
-    background-color: #6c757d; /* 灰色按钮 */
+    background-color: #6c757d;
     color: #ffffff;
 }
 
@@ -124,32 +148,36 @@ body.dark-mode .controls #themeToggle:hover {
 }
 
 body.dark-mode table {
-    background-color: #2c2c2c; /* 深色表格背景 */
+    background-color: #2c2c2c;
     box-shadow: 0 2px 5px rgba(255, 255, 255, 0.05);
 }
 
 body.dark-mode th,
 body.dark-mode td {
-    border-color: #444; /* 深色边框 */
+    border-color: #444;
 }
 
 body.dark-mode th {
-    background-color: #3a3a3a; /* 深色表头 */
+    background-color: #3a3a3a;
     color: #f8f9fa;
 }
 
 body.dark-mode tbody tr:nth-child(even) {
-    background-color: #252525; /* 稍浅的深色偶数行 */
+    background-color: #252525;
 }
 
 body.dark-mode tbody tr:hover {
-    background-color: #454545; /* 深色悬停背景 */
+    background-color: #454545;
 }
 
 body.dark-mode a {
-    color: #58a6ff; /* 亮蓝色链接 */
+    color: #58a6ff;
 }
 
 body.dark-mode a:hover {
     color: #80bfff;
+}
+
+body.dark-mode .alternate-title {
+    color: #adb5bd;
 }

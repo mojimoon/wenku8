@@ -10,7 +10,6 @@ from requests.packages.urllib3.util.retry import Retry
 import re
 import json
 
-# Configuration
 BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
 PARAMS = {
     't': '1',
@@ -27,6 +26,7 @@ OUTPUT_CSV = 'summary.csv'
 DOMAIN = 'https://www.wenku8.net'
 LATEST_TXT = 'latest.txt'
 OUTPUT_JSON = 'summary.json'
+INDEX_HTML = 'index.html'
 
 retry_strategy = Retry(
     total=5,
@@ -39,6 +39,7 @@ session.mount('http://', adapter)
 session.mount('https://', adapter)
 session.headers.update(HEADERS)
 
+# BEGIN web scraping
 def get_latest_url(post_link):
     resp = session.get(post_link, timeout=10)
     resp.raise_for_status()
@@ -113,7 +114,7 @@ def parse_page(page_num):
             get_latest(get_latest_url(post_link))
     return entries
 
-def main():
+def scrape():
     total_pages = get_last_page()
     print(f"Total pages found: {total_pages}")
 
@@ -145,7 +146,9 @@ def resume(last, tot):
             time.sleep(random.uniform(1, 3))
 
     print(f"Done. Data saved to {OUTPUT_CSV}")
+# END web scraping
 
+# BEGIN data processing
 def purify(text):
     '''
     只保留汉字、数字和字母
@@ -212,15 +215,90 @@ def match_summary():
         # minimal JSON output
         json.dump(output, f, ensure_ascii=False, separators=(',', ':'))
     print(f"Matched summary saved to {OUTPUT_JSON}")
+# END data processing
+
+# BEGIN HTML generation
+def create_html_table(data):
+    rows_html = ""
+    for item in data:
+        novel_title = item.get("novel_title", "N/A")
+        novel_link = item.get("novel_link", "#")
+        post_title = item.get("post_title", "N/A")
+        updated = item.get("updated", "N/A")
+        url = item.get("url", "")
+        pwd = item.get("pwd", "N/A")
+        lanzou_link = f"https://wwyt.lanzov.com/{url}" if url else "#"
+        lanzou_text = url if url else "N/A"
+
+        rows_html += f"""
+        <tr>
+            <td class="novel-title"><a href="{novel_link}" target="_blank">{novel_title}</a></td>
+            <td>{post_title}</td>
+            <td>{updated}</td>
+            <td><a href="{lanzou_link}" target="_blank">{lanzou_text}</a></td>
+            <td>{pwd}</td>
+        </tr>
+        """
+    return rows_html
+
+def generate_html_file(data, output_filename="index.html"):
+    table_content = create_html_table(data)
+
+    html_template = f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小说列表</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>小说列表</h1>
+
+    <div class="controls">
+        <input type="text" id="searchInput" placeholder="搜索">
+        <button id="themeToggle">日间/夜间</button>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>小说</th>
+                <th>最新卷</th>
+                <th>更新日期</th>
+                <th>蓝奏链接</th>
+                <th>密码</th>
+            </tr>
+        </thead>
+        <tbody id="novelTableBody">
+            {table_content}
+        </tbody>
+    </table>
+
+    <script src="script.js"></script>
+</body>
+</html>
+"""
+    try:
+        with open(output_filename, 'w', encoding='utf-8') as f:
+            f.write(html_template)
+        print(f"HTML file generated: {output_filename}")
+    except IOError as e:
+        print(f"Error writing HTML file: {e}")
+
+def html():
+    with open(OUTPUT_JSON, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    generate_html_file(data, INDEX_HTML)
+# END HTML generation
 
 if __name__ == '__main__':
-    if len(sys.argv) == 3:
-        last_page = int(sys.argv[1])
-        total_pages = int(sys.argv[2])
-        resume(last_page, total_pages)
-    else:
-        main()
+    # if len(sys.argv) == 3:
+    #     last_page = int(sys.argv[1])
+    #     total_pages = int(sys.argv[2])
+    #     resume(last_page, total_pages)
+    # else:
+    #     scrape()
 
-    match_summary()
-    
-# get_latest(get_latest_url('https://www.wenku8.net/modules/article/reviewshow.php?rid=295996'))
+    # match_summary()
+    html()

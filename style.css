@@ -1,0 +1,147 @@
+/* --- 基本样式与日间模式 --- */
+body {
+    font-family: sans-serif;
+    margin: 20px;
+    background-color: #f8f9fa;
+    color: #212529;
+    transition: background-color 0.3s, color 0.3s;
+    line-height: 1.6;
+}
+
+h1 {
+    text-align: center;
+    color: #343a40;
+}
+
+.controls {
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap; /* 允许换行 */
+    gap: 10px; /* 控件之间的间隙 */
+}
+
+#searchInput {
+    padding: 8px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 1rem;
+    flex-grow: 1; /* 允许搜索框伸展 */
+    min-width: 200px; /* 最小宽度 */
+}
+
+#themeToggle {
+    padding: 8px 15px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background-color 0.2s;
+}
+
+#themeToggle:hover {
+    background-color: #0056b3;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    background-color: #ffffff;
+}
+
+th, td {
+    border: 1px solid #dee2e6;
+    padding: 12px 15px;
+    text-align: left;
+}
+
+th {
+    background-color: #e9ecef;
+    color: #495057;
+    font-weight: bold;
+}
+
+tbody tr:nth-child(even) {
+    background-color: #f8f9fa;
+}
+
+tbody tr:hover {
+    background-color: #e2e6ea;
+}
+
+a {
+    color: #007bff;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+a:hover {
+    color: #0056b3;
+    text-decoration: underline;
+}
+
+/* 用于隐藏搜索结果的类 */
+.hidden {
+    display: none;
+}
+
+/* --- 夜间模式 --- */
+body.dark-mode {
+    background-color: #1a1a1a; /* 更深的背景 */
+    color: #e0e0e0; /* 浅灰色文字 */
+}
+
+body.dark-mode h1 {
+    color: #f8f9fa;
+}
+
+body.dark-mode .controls #searchInput {
+    background-color: #333;
+    color: #e0e0e0;
+    border-color: #555;
+}
+
+body.dark-mode .controls #themeToggle {
+    background-color: #6c757d; /* 灰色按钮 */
+    color: #ffffff;
+}
+
+body.dark-mode .controls #themeToggle:hover {
+    background-color: #5a6268;
+}
+
+body.dark-mode table {
+    background-color: #2c2c2c; /* 深色表格背景 */
+    box-shadow: 0 2px 5px rgba(255, 255, 255, 0.05);
+}
+
+body.dark-mode th,
+body.dark-mode td {
+    border-color: #444; /* 深色边框 */
+}
+
+body.dark-mode th {
+    background-color: #3a3a3a; /* 深色表头 */
+    color: #f8f9fa;
+}
+
+body.dark-mode tbody tr:nth-child(even) {
+    background-color: #252525; /* 稍浅的深色偶数行 */
+}
+
+body.dark-mode tbody tr:hover {
+    background-color: #454545; /* 深色悬停背景 */
+}
+
+body.dark-mode a {
+    color: #58a6ff; /* 亮蓝色链接 */
+}
+
+body.dark-mode a:hover {
+    color: #80bfff;
+}

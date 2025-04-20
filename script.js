@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const tableBody = document.getElementById('novelTableBody');
     const tableRows = tableBody.getElementsByTagName('tr');
     const themeToggle = document.getElementById('themeToggle');
+    const randomButton = document.getElementById('randomButton');
     const body = document.body;
 
     // --- 搜索功能 ---
@@ -20,6 +21,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     row.classList.add('hidden'); 
                 }
+            }
+        }
+    });
+
+    randomButton.addEventListener('click', function() {
+        const randomIndex = Math.floor(Math.random() * tableRows.length);
+        const randomRow = tableRows[randomIndex];
+        const aTag = randomRow.getElementsByTagName('a')[0];
+        const titleText = aTag.textContent || aTag.innerText;
+        searchInput.value = titleText;
+        for (let i = 0; i < tableRows.length; i++) {
+            const row = tableRows[i];
+            if (row === randomRow) {
+                row.classList.remove('hidden');
+            } else {
+                row.classList.add('hidden'); 
             }
         }
     });

@@ -8,12 +8,6 @@ body {
     line-height: 1.6;
 }
 
-@media screen and (max-width: 768px) {
-    body {
-        margin: 10px;
-    }
-}
-
 h1 {
     text-align: center;
     color: #343a40;
@@ -38,12 +32,11 @@ h3 {
     border-radius: 4px;
     font-size: 1rem;
     flex-grow: 1; /* 允许搜索框伸展 */
-    min-width: 200px;
+    /* min-width: 200px; */
 }
 
-#themeToggle {
+#themeToggle, #randomButton {
     padding: 8px 15px;
-    background-color: #007bff;
     color: white;
     border: none;
     border-radius: 4px;
@@ -52,7 +45,19 @@ h3 {
     transition: background-color 0.2s;
 }
 
+#themeToggle {
+    background-color: #28a745;
+}
+
 #themeToggle:hover {
+    background-color: #218838;
+}
+
+#randomButton {
+    background-color: #007bff;
+}
+
+#randomButton:hover {
     background-color: #0056b3;
 }
 
@@ -116,6 +121,9 @@ body.dark-mode {
 }
 
 @media screen and (max-width: 768px) {
+    body {
+        margin: 10px;
+    }
     table {
         font-size: 0.8rem;
         display: block; /* 允许表格在小屏幕上水平滚动 */
@@ -135,6 +143,11 @@ body.dark-mode {
     }
     .mobile-hidden {
         display: none;
+    }
+    #themeToggle, #randomButton {
+        padding: 8px 8px;
+        font-size: 0.8rem;
+        border-radius: 4px;
     }
 }
 

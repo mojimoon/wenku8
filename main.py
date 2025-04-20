@@ -294,6 +294,9 @@ def generate_html_file(data, output_filename="index.html"):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="keywords" content="轻小说,sf轻小说,dmzj轻小说,日本轻小说,动漫小说,轻小说电子书,轻小说EPUB下载">
+    <meta name="description" content="轻小说文库 EPUB 下载，支持搜索关键字、跳转至源站和蓝奏云下载，已进行移动端适配。">
+    <meta name="author" content="mojimoon">
     <title>轻小说文库 EPUB 下载</title>
     <link rel="stylesheet" href="style.css">
 </head>

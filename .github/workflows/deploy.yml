@@ -1,0 +1,53 @@
+name: Daily and On-Commit Deploy
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '16 0 * * *'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+
+    - name: Install dependencies
+      run: |
+        if [ -f "requirements.txt" ]; then
+          pip install -r requirements.txt
+        fi
+
+    - name: Run main.py
+      run: python main.py
+
+    # 检查 latest.txt 是否有变化
+    - name: Check for changes in latest.txt
+      id: check_changes
+      run: |
+        if git diff --exit-code latest.txt; then
+          echo "no_changes=true" >> $GITHUB_ENV
+        else
+          echo "no_changes=false" >> $GITHUB_ENV
+      continue-on-error: false
+
+    # 部署到 gh-pages 分支
+    - name: Deploy to gh-pages
+      if: env.no_changes == 'false'
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        git checkout -b gh-pages
+        # 将所需内容复制到 gh-pages 分支
+        # cp -R output/* .
+        git add .
+        git commit -m "Deploy updated pages [skip ci]"
+        git push --force origin gh-pages

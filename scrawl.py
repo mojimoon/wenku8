@@ -5,6 +5,8 @@ import time
 import random
 from urllib.parse import urljoin
 import sys
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 
 # Configuration
 BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
@@ -22,10 +24,20 @@ HEADERS = {
 OUTPUT_CSV = 'summary.csv'
 DOMAIN = 'https://www.wenku8.net'
 
+retry_strategy = Retry(
+    total=5,
+    status_forcelist=[500, 502, 503, 504],
+    backoff_factor=2,
+)
+session = requests.Session()
+adapter = HTTPAdapter(max_retries=retry_strategy)
+session.mount('http://', adapter)
+session.mount('https://', adapter)
+session.headers.update(HEADERS)
 
 def get_last_page():
     """Fetch the first page and parse the total number of pages."""
-    resp = requests.get(BASE_URL, params=PARAMS, headers=HEADERS)
+    resp = session.get(BASE_URL, params=PARAMS)
     resp.encoding = 'gbk'
     soup = BeautifulSoup(resp.text, 'html.parser')
     last = soup.find('a', class_='last')
@@ -35,7 +47,7 @@ def get_last_page():
 def parse_page(page_num):
     """Fetch and parse one page of reviews, returning a list of entries."""
     PARAMS['page'] = page_num
-    resp = requests.get(BASE_URL, params=PARAMS, headers=HEADERS, timeout=10)
+    resp = session.get(BASE_URL, params=PARAMS, timeout=10)
     resp.raise_for_status()
     resp.encoding = 'gbk'
     soup = BeautifulSoup(resp.text, 'html.parser')
@@ -51,7 +63,9 @@ def parse_page(page_num):
         # Post title & link
         a_post = cols[0].find('a')
         raw_title = a_post.text.strip()
-        post_title = raw_title.removesuffix(' epub') if raw_title.endswith(' epub') else raw_title
+        if not raw_title.endswith(' epub'):
+            continue
+        post_title = raw_title[:-5] if raw_title.endswith(' epub') else raw_title
         post_link = a_post['href'] if a_post['href'].startswith('http') else urljoin(DOMAIN, a_post['href'])
 
         # Novel title & link
@@ -59,12 +73,15 @@ def parse_page(page_num):
         novel_title = a_novel.text.strip()
         novel_link = urljoin(DOMAIN, a_novel['href'])
 
-        entries.append({
-            'post_title': post_title,
-            'post_link': post_link,
-            'novel_title': novel_title,
-            'novel_link': novel_link
-        })
+        # entries.append({
+        #     'post_title': post_title,
+        #     'post_link': post_link,
+        #     'novel_title': novel_title,
+        #     'novel_link': novel_link
+        # })
+        post_title = '"' + post_title + '"'
+        novel_title = '"' + novel_title + '"'
+        entries.append([post_title, post_link, novel_title, novel_link])
     return entries
 
 
@@ -73,30 +90,30 @@ def main():
     print(f"Total pages found: {total_pages}")
 
     with open(OUTPUT_CSV, 'w', newline='', encoding='utf-8') as csvfile:
-        fieldnames = ['post_title', 'post_link', 'novel_title', 'novel_link']
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        writer.writeheader()
+        # fieldnames = ['post_title', 'post_link', 'novel_title', 'novel_link']
+        # writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        # writer.writeheader()
+        csvfile.write('post_title,post_link,novel_title,novel_link\n')
 
         for page in range(1, total_pages + 1):
             print(f"Processing page {page}/{total_pages}...")
             entries = parse_page(page)
             for entry in entries:
-                writer.writerow(entry)
-            # polite delay
+                csvfile.write(','.join(entry) + '\n')
+                # writer.writerow(entry)
             time.sleep(random.uniform(1, 3))
 
     print(f"Done. Data saved to {OUTPUT_CSV}")
 
 def resume(last, tot):
+    print(f"Resuming from page {last}/{tot}...")
+
     with open(OUTPUT_CSV, 'a', newline='', encoding='utf-8') as csvfile:
-        fieldnames = ['post_title', 'post_link', 'novel_title', 'novel_link']
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        for page in range(last + 1, tot + 1):
+        for page in range(last, tot + 1):
             print(f"Processing page {page}/{tot}...")
             entries = parse_page(page)
             for entry in entries:
-                writer.writerow(entry)
-            # polite delay
+                csvfile.write(','.join(entry) + '\n')
             time.sleep(random.uniform(1, 3))
 
     print(f"Done. Data saved to {OUTPUT_CSV}")

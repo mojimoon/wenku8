@@ -8,6 +8,7 @@ import sys
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 import re
+import json
 
 # Configuration
 BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
@@ -25,6 +26,7 @@ HEADERS = {
 OUTPUT_CSV = 'summary.csv'
 DOMAIN = 'https://www.wenku8.net'
 LATEST_TXT = 'latest.txt'
+OUTPUT_JSON = 'summary.json'
 
 retry_strategy = Retry(
     total=5,
@@ -106,6 +108,9 @@ def parse_page(page_num):
         post_title = '"' + post_title + '"'
         novel_title = '"' + novel_title + '"'
         entries.append([post_title, post_link, novel_title, novel_link])
+
+        if page_num == 1 and i == 0:
+            get_latest(get_latest_url(post_link))
     return entries
 
 def main():
@@ -141,6 +146,61 @@ def resume(last, tot):
 
     print(f"Done. Data saved to {OUTPUT_CSV}")
 
+def purify(text):
+    '''
+    只保留汉字、数字和字母
+    '''
+    text = re.sub(r'[^\u4e00-\u9fa5a-zA-Z0-9]', '', text)
+    return text
+
+def match_summary():
+    csv_records = []
+    with open(OUTPUT_CSV, 'r', encoding='utf-8') as csvfile:
+        lines = csvfile.readlines()
+        lines = lines[1:-1]
+        reader = csv.reader(lines)
+        for row in reader:
+            csv_records.append([row[0], purify(row[2]), row[2], row[3]])
+        # print(f"CSV records: {len(csv_records)}")
+    
+    latest_records = []
+    with open(LATEST_TXT, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+        for line in lines[2:]:
+            parts = line.strip().split()
+            latest_records.append(parts)
+    
+    output = []
+    for latest in latest_records:
+        p_latest = purify(latest[3])
+        matched = None
+        for record in csv_records:
+            if p_latest in record[1]:
+                matched = record
+                break
+        if matched:
+            output.append({
+                'post_title': matched[0],
+                'novel_title': matched[2],
+                'novel_link': matched[3],
+                'updated': latest[0],
+                'url': latest[1],
+                'pwd': latest[2],
+            })
+        else:
+            output.append({
+                'post_title': '',
+                'novel_title': latest[3],
+                'novel_link': '',
+                'updated': latest[0],
+                'url': latest[1],
+                'pwd': latest[2],
+            })
+
+    with open(OUTPUT_JSON, 'w', encoding='utf-8') as f:
+        json.dump(output, f, ensure_ascii=False, indent=4)
+    print(f"Matched summary saved to {OUTPUT_JSON}")
+
 if __name__ == '__main__':
     # if len(sys.argv) == 3:
     #     last_page = int(sys.argv[1])
@@ -148,5 +208,7 @@ if __name__ == '__main__':
     #     resume(last_page, total_pages)
     # else:
     #     main()
+
+    match_summary()
     
-    get_latest(get_latest_url('https://www.wenku8.net/modules/article/reviewshow.php?rid=295996'))
+# get_latest(get_latest_url('https://www.wenku8.net/modules/article/reviewshow.php?rid=295996'))

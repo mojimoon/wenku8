@@ -344,12 +344,12 @@ def html():
 # END HTML generation
 
 if __name__ == '__main__':
-    # if len(sys.argv) == 3:
-    #     last_page = int(sys.argv[1])
-    #     total_pages = int(sys.argv[2])
-    #     resume(last_page, total_pages)
-    # else:
-    #     scrape()
+    if len(sys.argv) == 3:
+        last_page = int(sys.argv[1])
+        total_pages = int(sys.argv[2])
+        resume(last_page, total_pages)
+    else:
+        scrape()
 
-    # match_summary()
+    match_summary()
     html()

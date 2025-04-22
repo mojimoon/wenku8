@@ -48,6 +48,13 @@ def get_latest_url(post_link):
     # <a href="https://paste.gentoo.zip" target="_blank">https://paste.gentoo.zip</a>/EsX5Kx8V
     match = re.search(r'<a href="([^"]+)" target="_blank">([^<]+)</a>(/[^<]+)', resp.text)
     link = match.group(1) + match.group(3) if match else None
+    if link is None:
+        # <a href="https://0x0.st/8QWZ.txt" target="_blank">https://0x0.st/8QWZ.txt</a><br>
+        match = re.search(r'https:\/\/[^"]+?\.txt(?=")', resp.text)
+        if match:
+            link = match.group(0)
+        else:
+            raise ValueError("No valid link found in the response.")
 
     print(f"Latest link found: {link}")
 

@@ -5,7 +5,8 @@ on:
     branches:
       - main
   schedule:
-    - cron: '16 0 * * *'
+    # 16:00 UTC = 00:00 CST
+    - cron: '0 16 * * *'
 
 jobs:
   deploy:
@@ -29,11 +30,11 @@ jobs:
     - name: Run main.py
       run: python main.py
 
-    # 检查 latest.txt 是否有变化
-    - name: Check for changes in latest.txt
+    # 检查 index.html 是否有变化
+    - name: Check for changes in index.html
       id: check_changes
       run: |
-        if git diff --exit-code latest.txt; then
+        if git diff --exit-code index.html; then
           echo "no_changes=true" >> $GITHUB_ENV
         else
           echo "no_changes=false" >> $GITHUB_ENV
@@ -46,8 +47,6 @@ jobs:
         git config user.name "GitHub Actions"
         git config user.email "actions@github.com"
         git checkout -b gh-pages
-        # 将所需内容复制到 gh-pages 分支
-        # cp -R output/* .
         git add .
-        git commit -m "Deploy updated pages [skip ci]"
+        git commit -m "Site updated: $(date +'%Y-%m-%d %H:%M:%S')"
         git push --force origin gh-pages

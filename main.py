@@ -12,7 +12,7 @@ import json
 
 BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
 PARAMS = {
-    't': '1',
+    # 't': '1',
     'keyword': '8691',
     'charset': 'gbk',
     'page': 1
@@ -313,7 +313,7 @@ def generate_html_file(data, output_filename="index.html"):
 <body>
     <h1>轻小说文库 EPUB 下载</h1>
     <h3>By <a href="https://github.com/mojimoon">mojimoon</a> | <a href="https://github.com/mojimoon/wenku8">Star me</a> | {today}</h3>
-    <span>所有内容均收集于网络、仅供学习交流使用，本站仅作整理工作。特别感谢 EPUB 制作者 @<a href="https://www.wenku8.net/modules/article/reviewslist.php?t=1&keyword=8691&charset=gbk">酷儿加冰</a>。</span>
+    <span>所有内容均收集于网络、仅供学习交流使用，本站仅作整理工作。特别感谢 EPUB 制作者 @<a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=gbk">酷儿加冰</a>。</span>
     <span class="alternate-title">蓝奏链接前缀均为 https://wwyt.lanzov.com/</span>
 
     <div class="controls">

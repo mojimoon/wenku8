@@ -31,18 +31,18 @@ jobs:
       run: python main.py
 
     # 检查 index.html 是否有变化
-    - name: Check for changes in index.html
-      id: check_changes
-      run: |
-        if git diff --exit-code index.html; then
-          echo "no_changes=true" >> $GITHUB_ENV
-        else
-          echo "no_changes=false" >> $GITHUB_ENV
-      continue-on-error: false
+    # - name: Check for changes in index.html
+    #   id: check_changes
+    #   run: |
+    #     if git diff --exit-code index.html; then
+    #       echo "no_changes=true" >> $GITHUB_ENV
+    #     else
+    #       echo "no_changes=false" >> $GITHUB_ENV
+    #   continue-on-error: false
 
     # 部署到 gh-pages 分支
     - name: Deploy to gh-pages
-      if: env.no_changes == 'false'
+      # if: env.no_changes == 'false'
       run: |
         git config user.name "GitHub Actions"
         git config user.email "actions@github.com"

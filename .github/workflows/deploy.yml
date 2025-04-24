@@ -6,7 +6,7 @@ on:
       - main
   schedule:
     # 16:00 UTC = 00:00 CST
-    - cron: '0 16 * * *'
+    - cron: '0 16 */3 * *'
 
 jobs:
   deploy:
@@ -30,23 +30,8 @@ jobs:
     - name: Run main.py
       run: python main.py
 
-    # 检查 index.html 是否有变化
-    # - name: Check for changes in index.html
-    #   id: check_changes
-    #   run: |
-    #     if git diff --exit-code index.html; then
-    #       echo "no_changes=true" >> $GITHUB_ENV
-    #     else
-    #       echo "no_changes=false" >> $GITHUB_ENV
-    #   continue-on-error: false
-
-    # 部署到 gh-pages 分支
-    - name: Deploy to gh-pages
-      # if: env.no_changes == 'false'
-      run: |
-        git config user.name "GitHub Actions"
-        git config user.email "actions@github.com"
-        git checkout -b gh-pages
-        git add .
-        git commit -m "Site updated: $(date +'%Y-%m-%d %H:%M:%S')"
-        git push --force origin gh-pages
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./  # 这里填写你要部署的目录，如果是根目录，就用 `./`

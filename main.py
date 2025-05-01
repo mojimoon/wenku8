@@ -9,7 +9,9 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 import re
 import json
+from fake_useragent import UserAgent
 
+user_agent = UserAgent()
 BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
 PARAMS = {
     # 't': '1',
@@ -18,15 +20,18 @@ PARAMS = {
     'page': 1
 }
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-                  'AppleWebKit/537.36 (KHTML, like Gecko) '
-                  'Chrome/90.0.4430.93 Safari/537.36'
+    # 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+    #               'AppleWebKit/537.36 (KHTML, like Gecko) '
+    #               'Chrome/90.0.4430.93 Safari/537.36'
+    'User-Agent': user_agent.random,
 }
 OUTPUT_CSV = 'summary.csv'
 DOMAIN = 'https://www.wenku8.net'
 LATEST_TXT = 'latest.txt'
 OUTPUT_JSON = 'summary.json'
 INDEX_HTML = 'index.html'
+
+print("Using User-Agent:", HEADERS['User-Agent'])
 
 retry_strategy = Retry(
     total=5,

@@ -3,6 +3,7 @@ import json
 import time
 import pandas as pd
 import os
+import json
 
 # /repos/{owner}/{repo}/contents/
 
@@ -36,6 +37,7 @@ HEADERS = {
 OUTPUT_DIR = "txt"
 CSV_OUTPUT = "txt.csv"
 HTML_OUTPUT = "txt.html"
+SUMMARY_JSON = "summary.json"
 
 def scrape_repo(repo):
     url = API_URL.format(repo=repo)
@@ -78,10 +80,24 @@ def merge_csv_files():
 
     merged_df = pd.concat(all_data, ignore_index=True)
     print(f"Total rows before deduplication: {len(merged_df)}")
-    merged_df = merged_df.sort_values(by=["title", "author", "date"], ascending=[True, True, False])
-    merged_df = merged_df.drop_duplicates(subset=["title", "author"], keep="first")
+    # merged_df = merged_df.sort_values(by=["title", "author", "date"], ascending=[True, True, False])
+    # merged_df = merged_df.drop_duplicates(subset=["title", "author"], keep="first")
+    merged_df = merged_df.drop_duplicates(subset=["title", "author"], keep="last")
     print(f"Total rows after deduplication: {len(merged_df)}")
     merged_df = merged_df.sort_values(by=["date"], ascending=False)
+
+    summary_df = pd.read_json(SUMMARY_JSON, encoding="utf-8-sig")
+    merged_df["novel_link"] = ""
+    for i, row in merged_df.iterrows():
+        title = row["title"]
+        if summary_df["novel_title"].str.match(title).any():
+            matched_row = summary_df[summary_df["novel_title"].str.match(title)]
+            merged_df.at[i, "novel_link"] = matched_row["novel_link"].values[0]
+            if len(matched_row) > 1:
+                print(f"{len(matched_row)} matches found for title: {title}")
+                for k, v in matched_row.iterrows():
+                    print(f"row {k}: {v['novel_title']} - {v['novel_link']}")
+
     merged_df.to_csv(CSV_OUTPUT, index=False, encoding="utf-8-sig")
 
 def create_html_table(data):
@@ -90,9 +106,29 @@ def create_html_table(data):
         title = row["title"]
         author = row["author"]
         date = row["date"]
+        date = "" if pd.isna(date) else date
         download_url = row["download_url"]
         ghproxy_url = f"https://gh-proxy.com/{download_url}"
-        # row_html = f'<tr><td class="novel-title">{title}</td><td><span class="onclick-copy">复制</span> <a href="{download_url}" target="_blank" class="download-link">下载</a> <a href="{ghproxy_url}" target="_blank" class="ghproxy-link">镜像</a></td><td>{author}</td><td>{date}</td></tr>'
+        if title[-1] == ')':
+            last_bracket = title.rfind('(')
+            alternate_title = title[last_bracket+1:-1]
+            title = title[:last_bracket]
+        else:
+            alternate_title = ""
+        novel_link = row["novel_link"]
+        novel_link = novel_link if not pd.isna(novel_link) else ""
+
+        title_html = f'<a href="{novel_link}" target="_blank">{title}</a>' if novel_link else title
+    
+        row_html = f"""
+        <tr>
+            <td class="novel-title">{title_html}{alternate_title and "<span class='alternate-title'>" + alternate_title + "</span>"}</td>
+            <td><a href="{download_url}" target="_blank">下载</a> <a href="{ghproxy_url}" target="_blank">镜像</a></td>
+            <td>{author}</td>
+            <td>{date}</td>
+        </tr>
+        """
+
         rows_html.append(row_html)
     return "\n".join(rows_html)
 

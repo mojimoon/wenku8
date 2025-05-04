@@ -105,27 +105,23 @@ tbody tr:hover {
     background-color: #e2e6ea;
 }
 
-a, .onclick-copy {
+a {
     color: #007bff;
     text-decoration: none;
     transition: color 0.2s;
 }
 
-a:hover, .onclick-copy:hover {
+a:hover {
     color: #0056b3;
     text-decoration: underline;
 }
 
-.onclick-copy {
+/* .onclick-copy {
     cursor: pointer;
-}
+} */
 
 .novel-title {
     width: 60%;
-}
-
-.dl {
-    width: 15%;
 }
 
 .alternate-title {
@@ -167,9 +163,11 @@ a:hover, .onclick-copy:hover {
         font-size: 0.8rem;
         border-radius: 4px;
     }
-
     .right-controls {
         padding-top: 8px;
+    }
+    .dl {
+        min-width: 2rem;
     }
 }
 

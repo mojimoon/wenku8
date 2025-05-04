@@ -124,6 +124,10 @@ a:hover, .onclick-copy:hover {
     width: 60%;
 }
 
+.dl {
+    width: 15%;
+}
+
 .alternate-title {
     color: #6c757d;
     font-size: 0.85rem;
@@ -162,6 +166,10 @@ a:hover, .onclick-copy:hover {
         padding: 8px 8px;
         font-size: 0.8rem;
         border-radius: 4px;
+    }
+
+    .right-controls {
+        padding-top: 8px;
     }
 }
 

@@ -141,7 +141,7 @@ def create_html_table(data):
         row_html = f"""
         <tr>
             <td class="novel-title">{title_html}{alternate_title and "<span class='alternate-title'>" + alternate_title + "</span>"}</td>
-            <td><a href="{download_url}" target="_blank">下载</a> <a href="{ghproxy_url}" target="_blank">镜像</a></td>
+            <td class="dl"><a href="{download_url}" target="_blank">下载</a> <a href="{ghproxy_url}" target="_blank">镜像</a></td>
             <td>{author}</td>
             <td>{date}</td>
         </tr>
@@ -209,5 +209,5 @@ def html():
 
 if __name__ == "__main__":
     # scrape_all()
-    merge_csv_files()
+    # merge_csv_files()
     html()

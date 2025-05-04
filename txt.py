@@ -4,6 +4,7 @@ import time
 import pandas as pd
 import os
 import json
+import re
 
 # /repos/{owner}/{repo}/contents/
 
@@ -72,6 +73,13 @@ def scrape_all():
         scrape_repo(repo)
         time.sleep(1)
 
+def purify(text):
+    '''
+    只保留汉字、数字和字母
+    '''
+    text = re.sub(r'[^\u4e00-\u9fa5a-zA-Z0-9]', '', text)
+    return text
+
 def merge_csv_files():
     all_data = []
     for repo in REPOS:
@@ -87,16 +95,26 @@ def merge_csv_files():
     merged_df = merged_df.sort_values(by=["date"], ascending=False)
 
     summary_df = pd.read_json(SUMMARY_JSON, encoding="utf-8-sig")
+    summary_df["purified_title"] = summary_df["novel_title"].apply(purify)
+    summary_df["main_title"] = summary_df["novel_title"].apply(lambda x: x[:x.rfind('(')] if x[-1] == ')' else x)
+    summary_df["alternate_title"] = summary_df["novel_title"].apply(lambda x: x[x.rfind('(')+1:-1] if x[-1] == ')' else "")
+    summary_df["purified_main_title"] = summary_df["main_title"].apply(purify)
+    summary_df["purified_alternate_title"] = summary_df["alternate_title"].apply(purify)
     merged_df["novel_link"] = ""
     for i, row in merged_df.iterrows():
-        title = row["title"]
-        if summary_df["novel_title"].str.match(title).any():
-            matched_row = summary_df[summary_df["novel_title"].str.match(title)]
+        title = purify(row["title"])
+        if summary_df["purified_title"].str.match(title).any():
+            matched_row = summary_df[summary_df["purified_title"].str.match(title)]
             merged_df.at[i, "novel_link"] = matched_row["novel_link"].values[0]
             if len(matched_row) > 1:
                 print(f"{len(matched_row)} matches found for title: {title}")
                 for k, v in matched_row.iterrows():
-                    print(f"row {k}: {v['novel_title']} - {v['novel_link']}")
+                    print(f"row {k}: {v['purified_title']} - {v['novel_link']}")
+        elif summary_df["purified_alternate_title"].str.match(title).any():
+            matched_row = summary_df[summary_df["purified_alternate_title"].str.match(title)]
+            merged_df.at[i, "novel_link"] = matched_row["novel_link"].values[0]
+            merged_df.at[i, "title"] = f"{matched_row['main_title'].values[0]}({matched_row['alternate_title'].values[0]})"
+            # print(f"alternate_title match: {matched_row['main_title'].values[0]} - {matched_row['alternate_title'].values[0]}")
 
     merged_df.to_csv(CSV_OUTPUT, index=False, encoding="utf-8-sig")
 
@@ -191,5 +209,5 @@ def html():
 
 if __name__ == "__main__":
     # scrape_all()
-    # merge_csv_files()
+    merge_csv_files()
     html()

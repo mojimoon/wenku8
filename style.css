@@ -17,12 +17,20 @@ h3 {
     text-align: right;
 }
 
-.controls {
+.right-controls {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-bottom: 20px;
+    gap: 10px;
+}
+
+.search-bar {
     margin-bottom: 20px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    flex-wrap: wrap; /* 允许换行 */
+    flex-wrap: wrap;
     gap: 10px;
 }
 
@@ -35,7 +43,7 @@ h3 {
     /* min-width: 200px; */
 }
 
-#themeToggle, #randomButton {
+#themeToggle, #randomButton, #gotoButton {
     padding: 8px 15px;
     color: white;
     border: none;
@@ -59,6 +67,14 @@ h3 {
 
 #randomButton:hover {
     background-color: #0056b3;
+}
+
+#gotoButton {
+    background-color: #da70d6;
+}
+
+#gotoButton:hover {
+    background-color: #c95b9e;
 }
 
 table {
@@ -114,12 +130,6 @@ a:hover {
     display: none;
 }
 
-/* --- 夜间模式 --- */
-body.dark-mode {
-    background-color: #1a1a1a;
-    color: #e0e0e0;
-}
-
 @media screen and (max-width: 768px) {
     body {
         margin: 10px;
@@ -152,23 +162,44 @@ body.dark-mode {
 }
 
 /* --- 夜间样式 -- */
+body.dark-mode {
+    background-color: #1a1a1a;
+    color: #e0e0e0;
+}
+
 body.dark-mode h1 {
     color: #f8f9fa;
 }
 
-body.dark-mode .controls #searchInput {
+body.dark-mode #searchInput {
     background-color: #333;
     color: #e0e0e0;
     border-color: #555;
 }
 
-body.dark-mode .controls #themeToggle {
-    background-color: #6c757d;
-    color: #ffffff;
+body.dark-mode #themeToggle {
+    background-color: #338844;
 }
 
-body.dark-mode .controls #themeToggle:hover {
-    background-color: #5a6268;
+body.dark-mode #themeToggle:hover {
+    background-color: #2a7b3c;
+}
+
+body.dark-mode #gotoButton {
+    background-color: #6750a4;
+    /* color: #eaddff; */
+}
+
+body.dark-mode #gotoButton:hover {
+    background-color: #543e87;
+}
+
+body.dark-mode #randomButton {
+    background-color: #0056b3;
+}
+
+body.dark-mode #randomButton:hover {
+    background-color: #004494;
 }
 
 body.dark-mode table {

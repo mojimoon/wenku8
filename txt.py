@@ -2,12 +2,23 @@ import requests
 import json
 import time
 import pandas as pd
+import os
 
 # /repos/{owner}/{repo}/contents/
 
 API_URL = "https://api.github.com/repos/ixinzhi/{repo}/contents/"
 
 REPOS = [
+    # "lightnovel-2009to2013",
+    "lightnovel-2014to2017",
+    # "lightnovel-2018to2020",
+    "lightnovel-2021",
+    "lightnovel-2022",
+    "lightnovel-2023",
+    "lightnovel-2024",
+]
+
+ALL_REPOS = [
     "lightnovel-2009to2013",
     "lightnovel-2014to2017",
     "lightnovel-2018to2020",
@@ -22,26 +33,18 @@ HEADERS = {
     "User-Agent": "python-requests/2.25.1",
 }
 
-CSV_OUTPUT = "txt.csv"
+OUTPUT_DIR = "txt"
 HTML_OUTPUT = "txt.html"
 
 def scrape_repo(repo):
     url = API_URL.format(repo=repo)
     response = requests.get(url, headers=HEADERS)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        print(f"Failed to fetch data for {repo}: {response.status_code}")
-        return []
+    if response.status_code != 200:
+        print(f"Failed to fetch data from {url}: {response.status_code}")
+        return None
 
-def scrape():
-    all_data = []
-    for repo in REPOS:
-        data = scrape_repo(repo)
-        all_data.extend(data)
-        time.sleep(3)
-    
-    df = pd.DataFrame(all_data)
+    data = response.json()
+    df = pd.DataFrame(data)
     df = df[["name", "download_url"]]
 
     '''
@@ -57,7 +60,14 @@ def scrape():
 
     df = df[["title", "author", "date", "download_url"]]
 
-    df.to_csv(CSV_OUTPUT, index=False, encoding="utf-8-sig")
+    df.to_csv(os.path.join(OUTPUT_DIR, f"{repo}.csv"), index=False, encoding="utf-8-sig")
+
+def scrape_all():
+    if not os.path.exists(OUTPUT_DIR):
+        os.makedirs(OUTPUT_DIR)
+    for repo in REPOS:
+        scrape_repo(repo)
+        time.sleep(1)
 
 if __name__ == "__main__":
-    scrape()
+    scrape_all()

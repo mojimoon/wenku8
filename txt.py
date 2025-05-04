@@ -92,7 +92,7 @@ def create_html_table(data):
         date = row["date"]
         download_url = row["download_url"]
         ghproxy_url = f"https://gh-proxy.com/{download_url}"
-        row_html = f'<tr><td class="novel-title">{title}</td><td><span class="onclick-copy">复制</span> <a href="{download_url}" target="_blank" class="download-link">下载</a> <a href="{ghproxy_url}" target="_blank" class="ghproxy-link">镜像</a></td><td>{author}</td><td>{date}</td></tr>'
+        # row_html = f'<tr><td class="novel-title">{title}</td><td><span class="onclick-copy">复制</span> <a href="{download_url}" target="_blank" class="download-link">下载</a> <a href="{ghproxy_url}" target="_blank" class="ghproxy-link">镜像</a></td><td>{author}</td><td>{date}</td></tr>'
         rows_html.append(row_html)
     return "\n".join(rows_html)
 
@@ -141,7 +141,7 @@ def generate_html_file(data):
         </tbody>
     </table>
 
-    <script src="script.js"></script>
+    <script src="script_txt.js"></script>
 </body>
 </html>
 """

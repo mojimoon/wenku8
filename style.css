@@ -105,15 +105,19 @@ tbody tr:hover {
     background-color: #e2e6ea;
 }
 
-a {
+a, .onclick-copy {
     color: #007bff;
     text-decoration: none;
     transition: color 0.2s;
 }
 
-a:hover {
+a:hover, .onclick-copy:hover {
     color: #0056b3;
     text-decoration: underline;
+}
+
+.onclick-copy {
+    cursor: pointer;
 }
 
 .novel-title {

@@ -43,7 +43,7 @@ h3 {
     /* min-width: 200px; */
 }
 
-#themeToggle, #randomButton, #gotoButton {
+.btn {
     padding: 8px 15px;
     color: white;
     border: none;
@@ -75,6 +75,14 @@ h3 {
 
 #gotoButton:hover {
     background-color: #c95b9e;
+}
+
+#clearInput {
+    background-color: #333;
+}
+
+#clearInput:hover {
+    background-color: #555;
 }
 
 table {
@@ -158,7 +166,7 @@ a:hover {
     .mobile-hidden {
         display: none;
     }
-    #themeToggle, #randomButton {
+    .btn {
         padding: 8px 8px;
         font-size: 0.8rem;
         border-radius: 4px;
@@ -210,6 +218,14 @@ body.dark-mode #randomButton {
 
 body.dark-mode #randomButton:hover {
     background-color: #004494;
+}
+
+body.dark-mode #clearInput {
+    background-color: #555;
+}
+
+body.dark-mode #clearInput:hover {
+    background-color: #666;
 }
 
 body.dark-mode table {

@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const tableRows = tableBody.getElementsByTagName('tr');
     const themeToggle = document.getElementById('themeToggle');
     const randomButton = document.getElementById('randomButton');
+    const clearInput = document.getElementById('clearInput');
     const body = document.body;
 
     // --- 搜索功能 ---
@@ -60,4 +61,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    clearInput.addEventListener('click', function() {
+        searchInput.value = '';
+        for (let i = 0; i < tableRows.length; i++) {
+            const row = tableRows[i];
+            row.classList.remove('hidden'); 
+        }
+    });
 });

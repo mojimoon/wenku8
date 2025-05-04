@@ -56,4 +56,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    clearInput.addEventListener('click', function() {
+        searchInput.value = '';
+        for (let i = 0; i < tableRows.length; i++) {
+            const row = tableRows[i];
+            row.classList.remove('hidden'); 
+        }
+    });
 });

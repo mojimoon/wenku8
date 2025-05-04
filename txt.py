@@ -173,12 +173,13 @@ def generate_html_file(data):
     <span>所有内容均收集于网络、仅供学习交流使用，本站仅作整理工作。特别感谢 <a href="https://github.com/ixinzhi">布客新知</a> 整理。</span>
 
     <div class="right-controls">
-        <button id="themeToggle">日夜切换</button>
-        <a href="./index.html"><button id="gotoButton">切换到 EPUB 源 (最新最快)</button></a>
+        <a href="./index.html"><button class="btn" id="gotoButton">切换到 EPUB 源 (最新最快)</button></a>
+        <button class="btn" id="themeToggle">主题</button>
+        <button class="btn" id="clearInput">清除</button>
     </div>
     <div class="search-bar">
         <input type="text" id="searchInput" placeholder="搜索">
-        <button id="randomButton">随机</button>
+        <button class="btn" id="randomButton">随机</button>
     </div>
 
     <table>

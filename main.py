@@ -312,7 +312,7 @@ def match_summary():
 
 # BEGIN HTML generation
 def create_html_table(data):
-    rows_html = ""
+    rows = []
     for item in data:
         novel_title = item.get("novel_title", "N/A")
         novel_link = item.get("novel_link", "https://www.wenku8.net/")
@@ -334,74 +334,43 @@ def create_html_table(data):
         # https://www.wenku8.net/book/2751.htm -> https://www.wenku8.net/novel/2/2751/index.htm
         # online_read_link = re.sub(r'book/(\d+).htm', r'novel/2/\1/index.htm', novel_link)
 
-        rows_html += f"""
-        <tr>
-            <td class="novel-title"><a href="{novel_link}" target="_blank">{novel_title}</a>{novel_alternate_title and "<span class='alternate-title'>" + novel_alternate_title + "</span>" or ""}</td>
-            <td><a href="{lanzou_link}" target="_blank">{lanzou_text}</a></td>
-            <td>{pwd}</td>
-            <td>{post_title}</td>
-            <td>{updated}</td>
-        </tr>
-        """
-    return rows_html
+        alt_html = f"<span class='at'>{novel_alternate_title}</span>" if novel_alternate_title else ''
+        rows.append(
+            f"<tr><td class='nt'><a href='{novel_link}' target='_blank'>{novel_title}</a>{alt_html}</td>"
+            f"<td class='dl'><a href='{lanzou_link}' target='_blank'>{lanzou_text}</a></td>"
+            f"<td>{pwd}</td><td>{post_title}</td><td>{updated}</td></tr>"
+        )
+    return ''.join(rows)
 
 def generate_html_file(data, output_filename="index.html"):
     table_content = create_html_table(data)
 
     today = time.strftime("%Y-%m-%d", time.localtime())
 
-    html_template = f"""<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="keywords" content="轻小说,sf轻小说,dmzj轻小说,日本轻小说,动漫小说,轻小说电子书,轻小说EPUB下载">
-    <meta name="description" content="轻小说文库 EPUB 下载，支持搜索关键字、跳转至源站和蓝奏云下载，已进行移动端适配。">
-    <meta name="author" content="mojimoon">
-    <title>轻小说文库 EPUB 下载</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <h1>轻小说文库 EPUB 下载</h1>
-    <h3>By <a href="https://github.com/mojimoon">mojimoon</a> | <a href="https://github.com/mojimoon/wenku8">Star me</a> | {today}</h3>
-    <span>所有内容均收集于网络、仅供学习交流使用，本站仅作整理工作。特别感谢 @<a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=gbk">酷儿加冰</a> 整理。</span>
-    <span class="alternate-title">蓝奏链接前缀均为 https://wwyt.lanzov.com/</span>
-
-    <div class="right-controls">
-        <a href="./txt.html"><button class="btn" id="gotoButton">切换到 TXT 源 (更多老书)</button></a>
-        <button class="btn" id="themeToggle">主题</button>
-        <button class="btn" id="clearInput">清除</button>
-    </div>
-    <div class="search-bar">
-        <input type="text" id="searchInput" placeholder="搜索">
-        <button class="btn" id="randomButton">随机</button>
-    </div>
-
-    <table>
-        <thead>
-            <tr>
-                <th>小说</th>
-                <th>蓝奏链接</th>
-                <th>密码</th>
-                <th><span class="mobile-hidden">最新</span>卷</th>
-                <th>更新日期</th>
-            </tr>
-        </thead>
-        <tbody id="novelTableBody">
-            {table_content}
-        </tbody>
-    </table>
-
-    <script src="script.js"></script>
-</body>
-</html>
-"""
-    try:
-        with open(output_filename, 'w', encoding='utf-8') as f:
-            f.write(html_template)
-        print(f"HTML file generated: {output_filename}")
-    except IOError as e:
-        print(f"Error writing HTML file: {e}")
+    html = (
+        '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">'
+        '<meta name="viewport"content="width=device-width,initial-scale=1.0">'
+        '<meta name="keywords"content="轻小说,sf轻小说,dmzj轻小说,日本轻小说,动漫小说,轻小说电子书,轻小说EPUB下载">'
+        '<meta name="description"content="轻小说文库 EPUB 下载，支持搜索关键字、跳转至源站和蓝奏云下载，已进行移动端适配。">'
+        '<meta name="author"content="mojimoon"><title>轻小说文库 EPUB 下载</title>'
+        '<link rel="stylesheet"href="style.css"></head><body>'
+        '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载</h1>'
+        f'<h3>By <a href="https://github.com/mojimoon">mojimoon</a> | <a href="https://github.com/mojimoon/wenku8">Star me</a> | {today}</h3>'
+        '<span>所有内容均收集于网络、仅供学习交流使用，本站仅作整理工作。特别感谢 @<a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=gbk">酷儿加冰</a> 整理。</span>'
+        '<span class="at">蓝奏链接前缀均为 https://wwyt.lanzov.com/</span>'
+        '<div class="right-controls"><a href="./txt.html">'
+        '<button class="btn"id="gotoButton">切换到 TXT 源 (内容更全)</button></a>'
+        '<button class="btn"id="themeToggle">主题</button>'
+        '<button class="btn"id="clearInput">清除</button></div>'
+        '<div class="search-bar"><input type="text"id="searchInput"placeholder="搜索">'
+        '<button class="btn"id="randomButton">随机</button></div>'
+        '<table><thead><tr><th>小说</th><th>蓝奏链接</th><th>密码</th><th><span class="mobile-hidden">最新</span>卷</th><th>更新</th></tr>'
+        '</thead><tbody id="novelTableBody">'
+        f'{table_content}</tbody></table><script src="script.js"></script>'
+        '</body></html>'
+    )
+    with open(output_filename, 'w', encoding='utf-8') as f:
+        f.write(html)
 
 def html():
     with open(OUTPUT_JSON, 'r', encoding='utf-8') as f:

@@ -359,7 +359,7 @@ def generate_html_file(data, output_filename="index.html"):
         '<span>所有内容均收集于网络、仅供学习交流使用，本站仅作整理工作。特别感谢 @<a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=gbk">酷儿加冰</a> 整理。</span>'
         '<span class="at">蓝奏链接前缀均为 https://wwyt.lanzov.com/</span>'
         '<div class="right-controls"><a href="./txt.html">'
-        '<button class="btn"id="gotoButton">切换到 TXT 源 (更多老书)</button></a>'
+        '<button class="btn"id="gotoButton">切换到 TXT 源 (内容更全)</button></a>'
         '<button class="btn"id="themeToggle">主题</button>'
         '<button class="btn"id="clearInput">清除</button></div>'
         '<div class="search-bar"><input type="text"id="searchInput"placeholder="搜索">'

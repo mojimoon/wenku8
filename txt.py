@@ -138,9 +138,9 @@ def create_html_table(data):
             alternate_title = ''
         novel_link = row['novel_link'] if not pd.isna(row['novel_link']) else ''
         title_html = f'<a href="{novel_link}"target="_blank">{title}</a>' if novel_link else title
-        alt_html = f"<span class='alternate-title'>{alternate_title}</span>" if alternate_title else ''
+        alt_html = f"<span class='at'>{alternate_title}</span>" if alternate_title else ''
         rows.append(
-            f"<tr><td class='novel-title'>{title_html}{alt_html}</td>"
+            f"<tr><td class='nt'>{title_html}{alt_html}</td>"
             f"<td class='dl'><a href='{download_url}'target='_blank'>下载</a> "
             f"<a href='{ghproxy_url}'target='_blank'>镜像</a></td>"
             f"<td>{author}</td><td>{date}</td></tr>"

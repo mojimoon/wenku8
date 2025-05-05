@@ -334,9 +334,9 @@ def create_html_table(data):
         # https://www.wenku8.net/book/2751.htm -> https://www.wenku8.net/novel/2/2751/index.htm
         # online_read_link = re.sub(r'book/(\d+).htm', r'novel/2/\1/index.htm', novel_link)
 
-        alt_html = f"<span class='alternate-title'>{novel_alternate_title}</span>" if novel_alternate_title else ''
+        alt_html = f"<span class='at'>{novel_alternate_title}</span>" if novel_alternate_title else ''
         rows.append(
-            f"<tr><td class='novel-title'><a href='{novel_link}' target='_blank'>{novel_title}</a>{alt_html}</td>"
+            f"<tr><td class='nt'><a href='{novel_link}' target='_blank'>{novel_title}</a>{alt_html}</td>"
             f"<td class='dl'><a href='{lanzou_link}' target='_blank'>{lanzou_text}</a></td>"
             f"<td>{pwd}</td><td>{post_title}</td><td>{updated}</td></tr>"
         )
@@ -357,7 +357,7 @@ def generate_html_file(data, output_filename="index.html"):
         '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载</h1>'
         f'<h3>By <a href="https://github.com/mojimoon">mojimoon</a> | <a href="https://github.com/mojimoon/wenku8">Star me</a> | {today}</h3>'
         '<span>所有内容均收集于网络、仅供学习交流使用，本站仅作整理工作。特别感谢 @<a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=gbk">酷儿加冰</a> 整理。</span>'
-        '<span class="alternate-title">蓝奏链接前缀均为 https://wwyt.lanzov.com/</span>'
+        '<span class="at">蓝奏链接前缀均为 https://wwyt.lanzov.com/</span>'
         '<div class="right-controls"><a href="./txt.html">'
         '<button class="btn"id="gotoButton">切换到 TXT 源 (更多老书)</button></a>'
         '<button class="btn"id="themeToggle">主题</button>'

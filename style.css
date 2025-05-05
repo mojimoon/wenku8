@@ -128,11 +128,11 @@ a:hover {
     cursor: pointer;
 } */
 
-.novel-title {
+.nt {
     width: 60%;
 }
 
-.alternate-title {
+.at {
     color: #6c757d;
     font-size: 0.85rem;
     margin-left: 10px;
@@ -154,13 +154,13 @@ a:hover {
     th, td {
         padding: 4px 6px;
     }
-    .alternate-title {
+    .at {
         display: block;
         margin-top: 4px;
         margin-left: 0;
         font-size: 0.7rem;
     }
-    .novel-title a {
+    .nt a {
         display: block;
     }
     .mobile-hidden {
@@ -259,6 +259,6 @@ body.dark-mode a:hover {
     color: #80bfff;
 }
 
-body.dark-mode .alternate-title {
+body.dark-mode .at {
     color: #adb5bd;
 }

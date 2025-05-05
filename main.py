@@ -362,7 +362,7 @@ def generate_html_file(data, output_filename="index.html"):
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>轻小说文库 EPUB 下载</h1>
+    <h1 onclick="window.location.reload()">轻小说文库 EPUB 下载</h1>
     <h3>By <a href="https://github.com/mojimoon">mojimoon</a> | <a href="https://github.com/mojimoon/wenku8">Star me</a> | {today}</h3>
     <span>所有内容均收集于网络、仅供学习交流使用，本站仅作整理工作。特别感谢 @<a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=gbk">酷儿加冰</a> 整理。</span>
     <span class="alternate-title">蓝奏链接前缀均为 https://wwyt.lanzov.com/</span>

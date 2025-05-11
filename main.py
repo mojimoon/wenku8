@@ -299,7 +299,7 @@ def create_html_merged():
         f'<h3>By <a href="https://github.com/mojimoon">mojimoon</a> | <a href="https://github.com/mojimoon/wenku8">Star me</a> | {today}</h3>'
         '<span>所有内容均收集于网络，仅供学习交流使用。'
         '特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=gbk">酷儿加冰</a> 和 <a href="https://github.com/ixinzhi">布客新知</a> 整理。</span>'
-        '<span class="at">蓝奏为 Calibre 生成 EPUB，合集为纯文本 EPUB。</span>'
+        '<span class="at">蓝奏为 Calibre 生成 EPUB，括号内为最新卷数；合集为纯文本 EPUB。</span>'
         '<div class="right-controls"><a href="./index.html">'
         '<button class="btn"id="gotoButton">切换到仅 EPUB 源</button></a>'
         '<button class="btn"id="themeToggle">主题</button>'
@@ -314,15 +314,62 @@ def create_html_merged():
     with open(MERGED_HTML, 'w', encoding='utf-8') as f:
         f.write(html)
 
+def create_table_epub(df):
+    rows = []
+    for _, row in df.iterrows():
+        _l, _m, _a, _dll = row['novel_link'], row['main'], row['alt'], row['dl_label']
+        novel_link = None if pd.isna(_l) else _l
+        title_html = f'<a href="{novel_link}" target="_blank">{_m}</a>' if novel_link else _m
+        alt_html = '' if pd.isna(_a) else f"<span class='at'>{_a}</span>"
+        lz_dl = f"<a href='https://wwyt.lanzov.com/{_dll}' target='_blank'>({row['volume']})</a>"
+        rows.append(
+            f"<tr><td>{title_html}{alt_html}</td>"
+            f"<td class='au'>{row['author']}</td><td>{lz_dl}</td><td>{row['dl_pwd']}</td>"
+            f"<td class='yd'>{row['update']}</td></tr>"
+        )
+    return ''.join(rows)
+
+def create_html_epub():
+    df = pd.read_csv(MERGED_CSV, encoding='utf-8-sig')
+    df = df[df['dl_label'].notna()]
+    table = create_table_epub(df)
+    today = time.strftime('%Y-%m-%d', time.localtime())
+    html = (
+        '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">'
+        '<meta name="viewport"content="width=device-width,initial-scale=1.0">'
+        '<meta name="keywords"content="轻小说,sf轻小说,dmzj轻小说,日本轻小说,动漫小说,轻小说电子书,轻小说EPUB下载">'
+        '<meta name="description"content="轻小说文库 EPUB 下载，支持搜索关键字、跳转至源站和蓝奏云下载，已进行移动端适配。">'
+        '<meta name="author"content="mojimoon"><title>轻小说文库 EPUB 下载</title>'
+        '<link rel="stylesheet"href="style.css"></head><body>'
+        '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载</h1>'
+        f'<h3>By <a href="https://github.com/mojimoon">mojimoon</a> | <a href="https://github.com/mojimoon/wenku8">Star me</a> | {today}</h3>'
+        '<span>所有内容均收集于网络，仅供学习交流使用。'
+        '特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=gbk">酷儿加冰</a> 整理。</span>'
+        '<span class="at">括号内为最新卷数。</span>'
+        '<div class="right-controls"><a href="./merged.html">'
+        '<button class="btn"id="gotoButton">切换到 EPUB/TXT 源</button></a>'
+        '<button class="btn"id="themeToggle">主题</button>'
+        '<button class="btn"id="clearInput">清除</button></div>'
+        '<div class="search-bar"><input type="text"id="searchInput"placeholder="搜索">'
+        '<button class="btn"id="randomButton">随机</button></div>'
+        '<table><thead><tr><th>标题</th><th>作者</th><th>蓝奏</th><th>密码</th><th>更新</th></tr>'
+        '</thead><tbody id="novelTableBody">'
+        f'{table}</tbody></table><script src="script_merged.js"></script>'
+        '</body></html>'
+    )
+    with open(EPUB_HTML, 'w', encoding='utf-8') as f:
+        f.write(html)
+
 def main():
     if not os.path.exists(OUT_DIR):
         os.mkdir(OUT_DIR)
     if not os.path.exists(PUBLIC_DIR):
         os.mkdir(PUBLIC_DIR)
     
-    # scrape()
+    scrape()
     merge()
     create_html_merged()
+    create_html_epub()
 
 if __name__ == '__main__':
     main()

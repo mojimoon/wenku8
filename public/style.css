@@ -152,7 +152,7 @@ a:hover {
         overflow-x: auto;
     }
     th, td {
-        padding: 4px 6px;
+        padding: 2px 4px;
     }
     .at {
         display: block;
@@ -178,7 +178,7 @@ a:hover {
         min-width: 2rem;
     }
     .yd {
-        min-width: 3rem;
+        min-width: 2.2rem;
     }
 }
 

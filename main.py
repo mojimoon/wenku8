@@ -168,7 +168,7 @@ def replace_chinese_numerals(s):
         return match.group(1)
     return s
 
-UNMATCH = ['时间', '少女', '再见宣言', '强袭魔女', '秋之回忆', '秋之回忆2', '魔王', '青梅竹马']
+UNMATCH = ['时间', '少女', '再见宣言', '强袭魔女', '秋之回忆', '秋之回忆2', '魔王', '青梅竹马', '弹珠汽水']
 
 def merge():
     df_post = pd.read_csv(POST_LIST_FILE, encoding='utf-8')
@@ -265,12 +265,14 @@ def merge():
 def create_table_merged(df):
     rows = []
     for _, row in df.iterrows():
-        _l, _m, _a, _txt, _dll, _u, _at = row['novel_link'], row['main'], row['alt'], row['download_url'], row['dl_label'], row['update'], row['author']
+        _l, _m, _a, _txt, _dll, _u, _at, _v = row['novel_link'], row['main'], row['alt'], row['download_url'], row['dl_label'], row['update'], row['author'], row['volume']
         novel_link = None if pd.isna(_l) else _l
         title_html = f'<a href="{novel_link}" target="_blank">{_m}</a>' if novel_link else _m
         alt_html = '' if pd.isna(_a) else f"<span class='at'>{_a}</span>"
         txt_dl = '' if pd.isna(_txt) else f"<a href='{_txt}' target='_blank'>下载</a> <a href='https://ghproxy.com/{_txt}' target='_blank'>镜像</a>"
-        lz_dl = '' if pd.isna(_dll) else f"<a href='https://wwyt.lanzov.com/{_dll}' target='_blank'>({row['volume']})</a>"
+        volume = '' if pd.isna(_v) else _v
+        volume = volume[:3].strip() if len(volume) > 3 else volume
+        lz_dl = '' if pd.isna(_dll) else f"<a href='https://wwyt.lanzov.com/{_dll}' target='_blank'>({volume})</a>"
         date = '' if pd.isna(_u) else _u
         author = '' if pd.isna(_at) else _at
         lz_pwd = '' if pd.isna(_dll) else row['dl_pwd']
@@ -294,8 +296,9 @@ def create_html_merged():
         '<link rel="stylesheet"href="style.css"></head><body>'
         '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载 </h1>'
         f'<h3>By <a href="https://github.com/mojimoon">mojimoon</a> | <a href="https://github.com/mojimoon/wenku8">Star me</a> | {today}</h3>'
-        '<span>所有内容均收集于网络、仅供学习交流使用，本站仅作整理工作。'
-        '特别感谢 <a href="https://github.com/ixinzhi">布客新知</a> 整理。</span>'
+        '<span>所有内容均收集于网络，仅供学习交流使用。'
+        '特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=gbk">酷儿加冰</a> 和 <a href="https://github.com/ixinzhi">布客新知</a> 整理。</span>'
+        '<span class="at">蓝奏为 EPUB 源，合集为纯文本源，格式均为 EPUB。</span>'
         '<div class="right-controls"><a href="./index.html">'
         '<button class="btn"id="gotoButton">切换到仅 EPUB 源</button></a>'
         '<button class="btn"id="themeToggle">主题</button>'

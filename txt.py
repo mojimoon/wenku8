@@ -65,6 +65,8 @@ def merge_csv():
         all_dfs.append(df)
     merged_df = pd.concat(all_dfs, ignore_index=True)
     merged_df = merged_df.drop_duplicates(subset=["title", "author"], keep="last")
+    # TODO: additional duplicate check: if A.title contains B.title and A.author == B.author, remove B
+    # however this is uncommon and inefficient to implement, so we will not do it for now
     merged_df = merged_df.sort_values(by=["date"], ascending=False)
     merged_df.to_csv(TXT_LIST_FILE, index=False, encoding="utf-8-sig")
 

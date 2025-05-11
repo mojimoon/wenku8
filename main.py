@@ -10,13 +10,20 @@ from requests.packages.urllib3.util.retry import Retry
 import re
 import json
 import os
+import pandas as pd
 
 BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
 params = { 'keyword': '8691', 'charset': 'gbk', 'page': 1 }
 HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3' }
 DOMAIN = 'https://www.wenku8.net'
-POST_LIST_FILE = os.path.join('out', 'post_list.csv')
-DL_FILE = os.path.join('out', 'dl.txt')
+OUT_DIR = 'out'
+PUBLIC_DIR = 'public'
+POST_LIST_FILE = os.path.join(OUT_DIR, 'post_list.csv')
+TXT_LIST_FILE = os.path.join(OUT_DIR, 'txt_list.csv')
+DL_FILE = os.path.join(OUT_DIR, 'dl.txt')
+MERGED_CSV = os.path.join(OUT_DIR, 'merged.csv')
+EPUB_HTML = os.path.join(OUT_DIR, 'index.html')
+MERGED_HTML = os.path.join(OUT_DIR, 'merged.html')
 
 retry_strategy = Retry(
     total=5,
@@ -29,6 +36,7 @@ session.mount('http://', adapter)
 session.mount('https://', adapter)
 session.headers.update(HEADERS)
 
+# ========== Scraping ==========
 last_page = 1
 def get_latest_url(post_link):
     resp = session.get(post_link, timeout=10)
@@ -52,8 +60,26 @@ def get_latest(url):
     resp = session.get(url, timeout=10)
     resp.raise_for_status()
     resp.encoding = 'utf-8'
+
+    txt = resp.text
+    lines = txt.split('\n')
+    flg = [False] * 4
+    for i in range(len(lines)):
+        if not flg[0] and lines[i].endswith('_杂志连载版'):
+            lines[i] = lines[i].replace('_杂志连载版', '')
+            flg[0] = True
+        elif not flg[1] and lines[i].endswith('_SS'):
+            lines[i] = lines[i].replace('_SS', '')
+            flg[1] = True
+        elif not flg[2] and lines[i].endswith('-Ordinary_days-'):
+            lines[i] = lines[i].replace('-Ordinary_days-', ' 莉可丽丝 Ordinary days')
+            flg[2] = True
+        elif not flg[3] and lines[i].endswith('君若星辰'):
+            lines[i] = lines[i].replace('君若星辰', '宛如星辰的你')
+            flg[3] = True
+
     with open(DL_FILE, 'w', encoding='utf-8') as f:
-        f.write(resp.text)
+        f.write('\n'.join(lines))
 
 def parse_page(page_num):
     params['page'] = page_num
@@ -64,6 +90,7 @@ def parse_page(page_num):
     table = soup.find_all('table', class_='grid')[1]
     rows = table.find_all('tr')[1:]  # skip header row
 
+    flg = [False] * 2
     entries = []
     for (i, tr) in enumerate(rows):
         cols = tr.find_all('td')
@@ -79,6 +106,12 @@ def parse_page(page_num):
         a_novel = cols[1].find('a')
         novel_title = a_novel.text.strip()
         novel_link = urljoin(DOMAIN, a_novel['href'])
+        if not flg[0] and novel_link.endswith('/2751.htm'):
+            novel_title = '我们不可能成为恋人！绝对不行。（※似乎可行？）(我怎么可能成为你的恋人，不行不行！)'
+            flg[0] = True
+        if not flg[1] and novel_link.endswith('/3828.htm'):
+            novel_title = 'Tier1姐妹 有名四姐妹没我就活不下去'
+            flg[1] = True
 
         post_title = '"' + post_title + '"'
         novel_title = '"' + novel_title + '"'
@@ -104,13 +137,137 @@ def scrape():
         for entry in entries:
             f.write(','.join(entry) + '\n')
 
-def main():
-    if not os.path.exists('out'):
-        os.mkdir('out')
-    if not os.path.exists('public'):
-        os.mkdir('public')
+# ========== Data Processing ==========
+def purify(text): # 只保留中文、英文和数字
+    text = re.sub(r'[^\u4e00-\u9fa5a-zA-Z0-9]', '', text)
+    return text
+
+CN_NUM = { '零': 0, '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10 }
+
+def chinese_to_arabic(cn):
+    if cn == '十':
+        return 10
+    elif cn.startswith('十'):
+        return 10 + CN_NUM.get(cn[1], 0)
+    elif cn.endswith('十'):
+        return CN_NUM.get(cn[0], 0) * 10
+    elif '十' in cn:
+        parts = cn.split('十')
+        return CN_NUM.get(parts[0], 0) * 10 + CN_NUM.get(parts[1], 0)
+    else:
+        return CN_NUM.get(cn, 0)
+
+def replace_chinese_numerals(s):
+    match = re.search(r'第([一二三四五六七八九十零]{1,3})卷', s)
+    if match:
+        cn_num = match.group(1)
+        arabic_num = chinese_to_arabic(cn_num)
+        s = s.replace(cn_num, f' {arabic_num} ')
+    match = re.search(r'第 (\S+) 卷', s)
+    if match:
+        return match.group(1)
+    return s
+
+UNMATCH = ['时间', '少女', '再见宣言', '强袭魔女', '秋之回忆', '秋之回忆2', '魔王', '青梅竹马']
+
+def merge():
+    df_post = pd.read_csv(POST_LIST_FILE, encoding='utf-8')
+    df_post.drop_duplicates(subset=['novel_title'], keep='first', inplace=True)
+    df_post.reset_index(drop=True, inplace=True)
+    df_post['volume'] = df_post['post_title'].apply(replace_chinese_numerals)
+    # df_post['post_main'] = df_post['novel_title'].apply(lambda x: x[:x.rfind('(')] if x[-1] == ')' else x)
+    df_post['post_alt'] = df_post['novel_title'].apply(lambda x: x[x.rfind('(')+1:-1] if x[-1] == ')' else "")
+    df_post['post_pure'] = df_post['novel_title'].apply(purify)
+    df_post['post_alt_pure'] = df_post['post_alt'].apply(purify)
+    df_post.drop(columns=['post_title'], inplace=True)
+
+    df_post['dl_label'] = ""
+    df_post['dl_pwd'] = ""
+    df_post['dl_update'] = ""
+    df_post['txt_matched'] = False
+
+    # merge dl to post
+    with open(DL_FILE, 'r', encoding='utf-8') as f:
+        lines = f.readlines()[2:]
+        for line in lines:
+            parts = line.strip().split()
+            if len(parts) < 4:
+                continue
+            mask = df_post['post_pure'].str.match(purify(parts[3]))
+            if mask.any():
+                df_post.loc[mask, 'dl_label'] = parts[0]
+                df_post.loc[mask, 'dl_pwd'] = parts[1]
+                df_post.loc[mask, 'dl_update'] = parts[2]
+            #     if mask.sum() > 1:
+            #         print(f'[WARN] {mask.sum()} entries matched for {parts[3]}')
+            # else:
+            #     print(f'[WARN] Failed to match {parts[3]}')
     
-    scrape()
+    # merge post to txt
+    df_txt = pd.read_csv(TXT_LIST_FILE, encoding='utf-8')
+    df_txt['txt_pure'] = df_txt['title'].apply(purify) # 4
+    df_txt['volume'] = '' # 5
+    df_txt['dl_label'] = '' # 6
+    df_txt['dl_pwd'] = '' # 7
+    df_txt['dl_update'] = None # 8
+    df_txt['novel_title'] = '' # 9
+    df_txt['novel_link'] = '' # 10
+    for i in range(len(df_txt)):
+        _title = df_txt.iloc[i, 0]
+        if _title in UNMATCH:
+            continue
+        mask = df_post['post_pure'].str.match(df_txt.iloc[i, 4])
+        match = None
+        if mask.any():
+            if _title.startswith('魔女之旅'):
+                match = mask[mask].index[1]
+            else:
+                match = mask[mask].index[0]
+            # if mask.sum() > 1:
+            #     print(f'[WARN] {mask.sum()} entries matched for {_title}')
+            #     for j in range(len(df_post)):
+            #         if mask[j]:
+            #             print(f'    {df_post.iloc[j]["novel_title"]}')
+        else:
+            mask = df_post['post_alt_pure'].str.match(df_txt.iloc[i, 4])
+            if mask.any():
+                match = mask[mask].index[0]
+                # if mask.sum() > 1:
+                #     print(f'[WARN] {mask.sum()} entries matched for {_title}')
+                #     for j in range(len(df_post)):
+                #         if mask[j]:
+                #             print(f'    {df_post.iloc[j]["novel_title"]}')
+        if match is not None:
+            df_txt.iloc[i, 5] = df_post.iloc[match]['volume']
+            df_txt.iloc[i, 6] = df_post.iloc[match]['dl_label']
+            df_txt.iloc[i, 7] = df_post.iloc[match]['dl_pwd']
+            df_txt.iloc[i, 8] = df_post.iloc[match]['dl_update']
+            df_txt.iloc[i, 9] = df_post.iloc[match]['novel_title']
+            df_txt.iloc[i, 10] = df_post.iloc[match]['novel_link']
+            df_post.iloc[match, -1] = True
+    
+    _mask = df_post['txt_matched'] == False
+    for y in df_post[_mask].itertuples():
+        if y.dl_label == "":
+            continue
+        df_txt.loc[len(df_txt)] = ["", "", None, "", "", y.volume, y.dl_label, y.dl_pwd, y.dl_update, y.novel_title, y.novel_link]
+    
+    df_txt['title'] = df_txt.apply(lambda x: x['novel_title'] if x['novel_title'] else x['title'], axis=1)
+    df_txt['update'] = df_txt.apply(lambda x: x['dl_update'] if x['dl_update'] else x['date'], axis=1)
+    df_txt['main'] = df_txt['title'].apply(lambda x: x[:x.rfind('(')] if x[-1] == ')' else x)
+    df_txt['alt'] = df_txt['title'].apply(lambda x: x[x.rfind('(')+1:-1] if x[-1] == ')' else "")
+    df_txt.drop(columns=['title', 'date', 'txt_pure', 'novel_title'], inplace=True)
+    
+    df_txt.to_csv(MERGED_CSV, index=False, encoding='utf-8-sig')
+
+def main():
+    if not os.path.exists(OUT_DIR):
+        os.mkdir(OUT_DIR)
+    if not os.path.exists(PUBLIC_DIR):
+        os.mkdir(PUBLIC_DIR)
+    
+    # scrape()
+    merge()
 
 if __name__ == '__main__':
     main()

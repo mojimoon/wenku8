@@ -1,15 +1,10 @@
 import requests
-import json
+import os
+import re
 import time
 import pandas as pd
-import os
-import json
-import re
-
-# /repos/{owner}/{repo}/contents/
 
 API_URL = "https://api.github.com/repos/ixinzhi/{repo}/contents/"
-
 REPOS = [
     # "lightnovel-2009to2013",
     "lightnovel-2014to2017",
@@ -19,7 +14,6 @@ REPOS = [
     "lightnovel-2023",
     "lightnovel-2024",
 ]
-
 ALL_REPOS = [
     "lightnovel-2009to2013",
     "lightnovel-2014to2017",
@@ -29,31 +23,22 @@ ALL_REPOS = [
     "lightnovel-2023",
     "lightnovel-2024",
 ]
-
 HEADERS = {
     "Accept": "application/vnd.github.v3+json",
     "User-Agent": "python-requests/2.25.1",
 }
 
-OUTPUT_DIR = "txt"
-CSV_OUTPUT = "txt.csv"
-HTML_OUTPUT = "txt.html"
-SUMMARY_JSON = "summary.json"
+TXT_DIR = 'txt'
+TXT_LIST_FILE = os.path.join('out', 'txt_list.csv')
 
 def scrape_repo(repo):
     url = API_URL.format(repo=repo)
-    response = requests.get(url, headers=HEADERS)
-    if response.status_code != 200:
-        print(f"Failed to fetch data from {url}: {response.status_code}")
-        return None
+    resp = requests.get(url, headers=HEADERS)
+    resp.raise_for_status()
 
-    data = response.json()
+    data = resp.json()
     df = pd.DataFrame(data)
     df = df[["name", "download_url"]]
-
-    '''
-    ! 惊叹号 - 二宫敦人 - 20140303.epub
-    '''
 
     parts_df = df["name"].str.split(" - ", expand=True)
     df["title"] = parts_df.iloc[:, :-2].apply(lambda x: " - ".join(x), axis=1)
@@ -64,123 +49,35 @@ def scrape_repo(repo):
 
     df = df[["title", "author", "date", "download_url"]]
 
-    df.to_csv(os.path.join(OUTPUT_DIR, f"{repo}.csv"), index=False, encoding="utf-8-sig")
+    df.to_csv(os.path.join(TXT_DIR, f"{repo}.csv"), index=False, encoding="utf-8-sig")
 
 def scrape_all():
-    if not os.path.exists(OUTPUT_DIR):
-        os.makedirs(OUTPUT_DIR)
+    if not os.path.exists(TXT_DIR):
+        os.makedirs(TXT_DIR)
     for repo in REPOS:
         scrape_repo(repo)
         time.sleep(1)
 
-def purify(text):
-    '''
-    只保留汉字、数字和字母
-    '''
-    text = re.sub(r'[^\u4e00-\u9fa5a-zA-Z0-9]', '', text)
-    return text
-
-def merge_csv_files():
-    all_data = []
+def merge_csv():
+    all_dfs = []
     for repo in ALL_REPOS:
-        df = pd.read_csv(os.path.join(OUTPUT_DIR, f"{repo}.csv"), encoding="utf-8-sig")
-        all_data.append(df)
-
-    merged_df = pd.concat(all_data, ignore_index=True)
-    print(f"Total rows before deduplication: {len(merged_df)}")
-    # merged_df = merged_df.sort_values(by=["title", "author", "date"], ascending=[True, True, False])
-    # merged_df = merged_df.drop_duplicates(subset=["title", "author"], keep="first")
+        df = pd.read_csv(os.path.join(TXT_DIR, f"{repo}.csv"))
+        all_dfs.append(df)
+    merged_df = pd.concat(all_dfs, ignore_index=True)
     merged_df = merged_df.drop_duplicates(subset=["title", "author"], keep="last")
-    print(f"Total rows after deduplication: {len(merged_df)}")
+    # TODO: additional duplicate check: if A.title contains B.title and A.author == B.author, remove B
+    # however this is uncommon and inefficient to implement, so we will not do it for now
     merged_df = merged_df.sort_values(by=["date"], ascending=False)
+    merged_df.to_csv(TXT_LIST_FILE, index=False, encoding="utf-8-sig")
 
-    summary_df = pd.read_json(SUMMARY_JSON, encoding="utf-8-sig")
-    summary_df["purified_title"] = summary_df["novel_title"].apply(purify)
-    summary_df["main_title"] = summary_df["novel_title"].apply(lambda x: x[:x.rfind('(')] if x[-1] == ')' else x)
-    summary_df["alternate_title"] = summary_df["novel_title"].apply(lambda x: x[x.rfind('(')+1:-1] if x[-1] == ')' else "")
-    summary_df["purified_main_title"] = summary_df["main_title"].apply(purify)
-    summary_df["purified_alternate_title"] = summary_df["alternate_title"].apply(purify)
-    merged_df["novel_link"] = ""
-    for i, row in merged_df.iterrows():
-        title = purify(row["title"])
-        if title == "时间" or title == "少女" or title == "魔王" or title == "青梅竹马":
-            continue
-        matched_row = summary_df[summary_df["purified_title"].str.match(title)]
-        if not matched_row.empty:
-            merged_df.at[i, "novel_link"] = matched_row["novel_link"].values[0]
-            if len(matched_row) > 1:
-                print(f"{len(matched_row)} matches found for title: {title}")
-                for k, v in matched_row.iterrows():
-                    print(f"row {k}: {v['purified_title']} - {v['novel_link']}")
-        else:
-            matched_row = summary_df[summary_df["purified_alternate_title"].str.match(title)]
-            if not matched_row.empty:
-                merged_df.at[i, "novel_link"] = matched_row["novel_link"].values[0]
-                merged_df.at[i, "title"] = f"{matched_row['main_title'].values[0]}({matched_row['alternate_title'].values[0]})"
-                # print(f"alternate_title match: {matched_row['main_title'].values[0]} - {matched_row['alternate_title'].values[0]}")
+def main():
+    if not os.path.exists('out'):
+        os.mkdir('out')
+    if not os.path.exists(TXT_DIR):
+        os.mkdir(TXT_DIR)
+    
+    scrape_all()
+    merge_csv()
 
-    merged_df.to_csv(CSV_OUTPUT, index=False, encoding="utf-8-sig")
-
-def create_html_table(data):
-    rows = []
-    for _, row in data.iterrows():
-        title = row['title']
-        author = row['author']
-        date = row['date']
-        date = '' if pd.isna(date) else date
-        download_url = row['download_url']
-        ghproxy_url = f'https://gh-proxy.com/{download_url}'
-        if title.endswith(')'):
-            i = title.rfind('(')
-            alternate_title = title[i+1:-1]
-            title = title[:i]
-        else:
-            alternate_title = ''
-        novel_link = row['novel_link'] if not pd.isna(row['novel_link']) else ''
-        title_html = f'<a href="{novel_link}"target="_blank">{title}</a>' if novel_link else title
-        alt_html = f"<span class='at'>{alternate_title}</span>" if alternate_title else ''
-        rows.append(
-            f"<tr><td class='nt'>{title_html}{alt_html}</td>"
-            f"<td class='dl'><a href='{download_url}'target='_blank'>下载</a> "
-            f"<a href='{ghproxy_url}'target='_blank'>镜像</a></td>"
-            f"<td>{author}</td><td>{date}</td></tr>"
-        )
-    return ''.join(rows)
-
-def generate_html_file(data):
-    table_content = create_html_table(data)
-    this_year = time.strftime('%Y', time.localtime())
-    html = (
-        '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">'
-        '<meta name="viewport"content="width=device-width,initial-scale=1.0">'
-        '<meta name="keywords"content="轻小说,sf轻小说,dmzj轻小说,日本轻小说,动漫小说,轻小说电子书,轻小说EPUB下载">'
-        '<meta name="description"content="轻小说文库 EPUB 下载，支持搜索关键字、跳转至源站和蓝奏云下载，已进行移动端适配。">'
-        '<meta name="author"content="mojimoon"><title>轻小说文库 EPUB 下载 (TXT 源)</title>'
-        '<link rel="stylesheet"href="style.css"></head><body>'
-        '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载 (TXT 源)</h1>'
-        f'<h3>By <a href="https://github.com/mojimoon">mojimoon</a> | <a href="https://github.com/mojimoon/wenku8">Star me</a> | {this_year}年 | {len(data)}部</h3>'
-        '<span>所有内容均收集于网络、仅供学习交流使用，本站仅作整理工作。'
-        '特别感谢 <a href="https://github.com/ixinzhi">布客新知</a> 整理。</span>'
-        '<div class="right-controls"><a href="./index.html">'
-        '<button class="btn"id="gotoButton">切换到 EPUB 源 (最新最快)</button></a>'
-        '<button class="btn"id="themeToggle">主题</button>'
-        '<button class="btn"id="clearInput">清除</button></div>'
-        '<div class="search-bar"><input type="text"id="searchInput"placeholder="搜索">'
-        '<button class="btn"id="randomButton">随机</button></div>'
-        '<table><thead><tr><th>标题</th><th>下载</th><th>作者</th><th>更新</th></tr>'
-        '</thead><tbody id="novelTableBody">'
-        f'{table_content}</tbody></table><script src="script_txt.js"></script>'
-        '</body></html>'
-    )
-    with open(HTML_OUTPUT, 'w', encoding='utf-8') as f:
-        f.write(html)
-
-def html():
-    with open(CSV_OUTPUT, "r", encoding="utf-8-sig") as f:
-        data = pd.read_csv(f)
-    generate_html_file(data)
-
-if __name__ == "__main__":
-    # scrape_all()
-    # merge_csv_files()
-    html()
+if __name__ == '__main__':
+    main()

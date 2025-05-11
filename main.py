@@ -9,86 +9,36 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 import re
 import json
+import os
+import pandas as pd
 
 BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
-PARAMS = {
-    # 't': '1',
-    'keyword': '8691',
-    'charset': 'gbk',
-    'page': 1
-}
-# HEADERS = {
-#     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-#                   'AppleWebKit/537.36 (KHTML, like Gecko) '
-#                   'Chrome/90.0.4430.93 Safari/537.36'
-# }
-OUTPUT_CSV = 'summary.csv'
+params = { 'keyword': '8691', 'charset': 'gbk', 'page': 1 }
+HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3' }
 DOMAIN = 'https://www.wenku8.net'
-LATEST_TXT = 'latest.txt'
-OUTPUT_JSON = 'summary.json'
-INDEX_HTML = 'index.html'
-
-# reference: https://blog.csdn.net/a_123_4/article/details/119718509
-my_headers = [
-    "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36 OPR/26.0.1656.60",
-    "Opera/8.0 (Windows NT 5.1; U; en)",
-    "Mozilla/5.0 (Windows NT 5.1; U; en; rv:1.8.1) Gecko/20061208 Firefox/2.0.0 Opera 9.50",
-    "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; en) Opera 9.50",
-    "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:34.0) Gecko/20100101 Firefox/34.0",
-    "Mozilla/5.0 (X11; U; Linux x86_64; zh-CN; rv:1.9.2.10) Gecko/20100922 Ubuntu/10.10 (maverick) Firefox/3.6.10",
-    "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/534.57.2 (KHTML, like Gecko) Version/5.1.7 Safari/534.57.2",
-    "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.71 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.64 Safari/537.11",
-    "Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US) AppleWebKit/534.16 (KHTML, like Gecko) Chrome/10.0.648.133 Safari/534.16",
-    "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/30.0.1599.101 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 6.1; WOW64; Trident/7.0; rv:11.0) like Gecko",
-    "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/536.11 (KHTML, like Gecko) Chrome/20.0.1132.11 TaoBrowser/2.0 Safari/536.11",
-    "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.1 (KHTML, like Gecko) Chrome/21.0.1180.71 Safari/537.1 LBBROWSER",
-    "Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0; SLCC2; .NET CLR 2.0.50727; .NET CLR 3.5.30729; .NET CLR 3.0.30729; Media Center PC 6.0; .NET4.0C; .NET4.0E; LBBROWSER)",
-    "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1; QQDownload 732; .NET4.0C; .NET4.0E; LBBROWSER)" ,
-    "Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0; SLCC2; .NET CLR 2.0.50727; .NET CLR 3.5.30729; .NET CLR 3.0.30729; Media Center PC 6.0; .NET4.0C; .NET4.0E; QQBrowser/7.0.3698.400)",
-    "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1; QQDownload 732; .NET4.0C; .NET4.0E) ",
-    "Mozilla/5.0 (Windows NT 5.1) AppleWebKit/535.11 (KHTML, like Gecko) Chrome/17.0.963.84 Safari/535.11 SE 2.X MetaSr 1.0",
-    "Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1; Trident/4.0; SV1; QQDownload 732; .NET4.0C; .NET4.0E; SE 2.X MetaSr 1.0)",
-    "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Maxthon/4.4.3.4000 Chrome/30.0.1599.101 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/38.0.2125.122 UBrowser/4.0.3214.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.100 Safari/537.36",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 13_3_1 like Mac OS X; zh-CN) AppleWebKit/537.51.1 (KHTML, like Gecko) Mobile/17D50 UCBrowser/12.8.2.1268 Mobile AliApp(TUnionSDK/0.1.20.3)",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.116 Safari/537.36",
-    "Mozilla/5.0 (Linux; Android 8.1.0; OPPO R11t Build/OPM1.171019.011; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/76.0.3809.89 Mobile Safari/537.36 T7/11.19 SP-engine/2.15.0 baiduboxapp/11.19.5.10 (Baidu; P1 8.1.0)",
-    "Mozilla/5.0 (Windows NT 6.3; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 13_3_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 SP-engine/2.14.0 main%2F1.0 baiduboxapp/11.18.0.16 (Baidu; P2 13.3.1) NABar/0.0 ",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/64.0.3282.140 Safari/537.36 Edge/17.17134",
-    "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/537.36",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 12_4_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/7.0.10(0x17000a21) NetType/4G Language/zh_CN",
-    "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.108 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.106 Safari/537.36"
-]
-
-def get_random_header():
-    header = random.choice(my_headers)
-    # print(f"Using header: {header}")
-    return {'User-Agent': header}
+OUT_DIR = 'out'
+PUBLIC_DIR = 'public'
+POST_LIST_FILE = os.path.join(OUT_DIR, 'post_list.csv')
+TXT_LIST_FILE = os.path.join(OUT_DIR, 'txt_list.csv')
+DL_FILE = os.path.join(OUT_DIR, 'dl.txt')
+MERGED_CSV = os.path.join(OUT_DIR, 'merged.csv')
+EPUB_HTML = os.path.join(PUBLIC_DIR, 'index.html')
+MERGED_HTML = os.path.join(PUBLIC_DIR, 'merged.html')
 
 retry_strategy = Retry(
     total=5,
     status_forcelist=[500, 502, 503, 504],
-    backoff_factor=2,
+    backoff_factor=2
 )
 session = requests.Session()
 adapter = HTTPAdapter(max_retries=retry_strategy)
 session.mount('http://', adapter)
 session.mount('https://', adapter)
-# session.headers.update(HEADERS)
-session.headers.update(get_random_header())
+session.headers.update(HEADERS)
 
-# BEGIN web scraping
+# ========== Scraping ==========
+last_page = 1
 def get_latest_url(post_link):
-    session.headers.update(get_random_header())
     resp = session.get(post_link, timeout=10)
     resp.raise_for_status()
     resp.encoding = 'gbk'
@@ -102,50 +52,50 @@ def get_latest_url(post_link):
         if match:
             link = match.group(0)
         else:
-            raise ValueError("No valid link found in the response.")
-
-    print(f"Latest link found: {link}")
+            raise ValueError("[ERROR] Failed to find the latest URL")
 
     return link
 
 def get_latest(url):
-    session.headers.update(get_random_header())
     resp = session.get(url, timeout=10)
     resp.raise_for_status()
     resp.encoding = 'utf-8'
 
-    with open(LATEST_TXT, 'w', encoding='utf-8') as f:
-        f.write(resp.text)
+    txt = resp.text
+    lines = txt.split('\n')
+    flg = [False] * 4
+    for i in range(len(lines)):
+        if not flg[0] and lines[i].endswith('_杂志连载版'):
+            lines[i] = lines[i].replace('_杂志连载版', '')
+            flg[0] = True
+        elif not flg[1] and lines[i].endswith('_SS'):
+            lines[i] = lines[i].replace('_SS', '')
+            flg[1] = True
+        elif not flg[2] and lines[i].endswith('-Ordinary_days-'):
+            lines[i] = lines[i].replace('-Ordinary_days-', ' 莉可丽丝 Ordinary days')
+            flg[2] = True
+        elif not flg[3] and lines[i].endswith('君若星辰'):
+            lines[i] = lines[i].replace('君若星辰', '宛如星辰的你')
+            flg[3] = True
 
-    print(f"Latest file saved to {LATEST_TXT}")
-
-def get_last_page():
-    """Fetch the first page and parse the total number of pages."""
-    session.headers.update(get_random_header())
-    resp = session.get(BASE_URL, params=PARAMS)
-    resp.encoding = 'gbk'
-    soup = BeautifulSoup(resp.text, 'html.parser')
-    last = soup.find('a', class_='last')
-    return int(last.text) if last else 1
+    with open(DL_FILE, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(lines))
 
 def parse_page(page_num):
-    """Fetch and parse one page of reviews, returning a list of entries."""
-    PARAMS['page'] = page_num
-    session.headers.update(get_random_header())
-    resp = session.get(BASE_URL, params=PARAMS, timeout=10)
+    params['page'] = page_num
+    resp = session.get(BASE_URL, params=params, timeout=10)
     resp.raise_for_status()
     resp.encoding = 'gbk'
     soup = BeautifulSoup(resp.text, 'html.parser')
-    # table = soup.find('table', class_='grid')
     table = soup.find_all('table', class_='grid')[1]
     rows = table.find_all('tr')[1:]  # skip header row
 
+    flg = [False] * 2
     entries = []
     for (i, tr) in enumerate(rows):
         cols = tr.find_all('td')
         if len(cols) < 2:
             continue
-        # Post title & link
         a_post = cols[0].find('a')
         raw_title = a_post.text.strip()
         if not raw_title.endswith(' epub'):
@@ -153,74 +103,48 @@ def parse_page(page_num):
         post_title = raw_title[:-5] if raw_title.endswith(' epub') else raw_title
         post_link = a_post['href'] if a_post['href'].startswith('http') else urljoin(DOMAIN, a_post['href'])
 
-        # Novel title & link
         a_novel = cols[1].find('a')
         novel_title = a_novel.text.strip()
         novel_link = urljoin(DOMAIN, a_novel['href'])
+        if not flg[0] and novel_link.endswith('/2751.htm'):
+            novel_title = '我们不可能成为恋人！绝对不行。（※似乎可行？）(我怎么可能成为你的恋人，不行不行！)'
+            flg[0] = True
+        if not flg[1] and novel_link.endswith('/3828.htm'):
+            novel_title = 'Tier1姐妹 有名四姐妹没我就活不下去'
+            flg[1] = True
 
-        # entries.append({
-        #     'post_title': post_title,
-        #     'post_link': post_link,
-        #     'novel_title': novel_title,
-        #     'novel_link': novel_link
-        # })
         post_title = '"' + post_title + '"'
         novel_title = '"' + novel_title + '"'
         entries.append([post_title, post_link, novel_title, novel_link])
 
         if page_num == 1 and i == 0:
             get_latest(get_latest_url(post_link))
+    
+    if page_num == 1:
+        last = soup.find('a', class_='last')
+        global last_page
+        last_page = int(last.text) if last else 1
     return entries
 
 def scrape():
-    total_pages = get_last_page()
-    print(f"Total pages found: {total_pages}")
+    entries = parse_page(1)
+    for page in range(2, last_page + 1):
+        print(f'[INFO] scrape ({page}/{last_page})')
+        entries.extend(parse_page(page))
+        time.sleep(random.uniform(1, 3))
+    with open(POST_LIST_FILE, 'w', encoding='utf-8', newline='') as f:
+        f.write('post_title,post_link,novel_title,novel_link\n')
+        for entry in entries:
+            f.write(','.join(entry) + '\n')
 
-    with open(OUTPUT_CSV, 'w', newline='', encoding='utf-8') as csvfile:
-        # fieldnames = ['post_title', 'post_link', 'novel_title', 'novel_link']
-        # writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        # writer.writeheader()
-        csvfile.write('post_title,post_link,novel_title,novel_link\n')
-
-        for page in range(1, total_pages + 1):
-            print(f"Processing page {page}/{total_pages}...")
-            entries = parse_page(page)
-            for entry in entries:
-                csvfile.write(','.join(entry) + '\n')
-                # writer.writerow(entry)
-            time.sleep(random.uniform(1, 3))
-
-    print(f"Done. Data saved to {OUTPUT_CSV}")
-
-def resume(last, tot):
-    print(f"Resuming from page {last}/{tot}...")
-
-    with open(OUTPUT_CSV, 'a', newline='', encoding='utf-8') as csvfile:
-        for page in range(last, tot + 1):
-            print(f"Processing page {page}/{tot}...")
-            entries = parse_page(page)
-            for entry in entries:
-                csvfile.write(','.join(entry) + '\n')
-            time.sleep(random.uniform(1, 3))
-
-    print(f"Done. Data saved to {OUTPUT_CSV}")
-# END web scraping
-
-# BEGIN data processing
-def purify(text):
-    '''
-    只保留汉字、数字和字母
-    '''
+# ========== Data Processing ==========
+def purify(text): # 只保留中文、英文和数字
     text = re.sub(r'[^\u4e00-\u9fa5a-zA-Z0-9]', '', text)
     return text
 
-CN_NUM = {
-    '零': 0, '一': 1, '二': 2, '三': 3, '四': 4,
-    '五': 5, '六': 6, '七': 7, '八': 8, '九': 9,
-    '十': 10
-}
+CN_NUM = { '零': 0, '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10 }
 
-def chinese_to_arabic(cn: str) -> int:
+def chinese_to_arabic(cn):
     if cn == '十':
         return 10
     elif cn.startswith('十'):
@@ -233,120 +157,183 @@ def chinese_to_arabic(cn: str) -> int:
     else:
         return CN_NUM.get(cn, 0)
 
-def replace_chinese_numerals(s: str) -> str:
-    pattern = r'[第]*([一二三四五六七八九十零]{1,3})[卷]*'
-    match = re.search(pattern, s)
+def replace_chinese_numerals(s):
+    match = re.search(r'第([一二三四五六七八九十零]{1,3})卷', s)
     if match:
         cn_num = match.group(1)
         arabic_num = chinese_to_arabic(cn_num)
-        return s.replace(cn_num, f' {arabic_num} ')
+        s = s.replace(cn_num, f' {arabic_num} ')
+    match = re.search(r'第 (\S+) 卷', s)
+    if match:
+        s = s.replace('第 ', '')
+        s = s.replace(' 卷', '')
     return s
 
-def match_summary():
-    csv_records = []
-    with open(OUTPUT_CSV, 'r', encoding='utf-8') as csvfile:
-        lines = csvfile.readlines()
-        lines = lines[1:-1]
-        reader = csv.reader(lines)
-        for row in reader:
-            if row[3].endswith('2751.htm'):
-                patched_name = '我们不可能成为恋人！绝对不行。（※似乎可行？）(我怎么可能成为你的恋人，不行不行！)'
-                csv_records.append([replace_chinese_numerals(row[0]), purify(patched_name), patched_name, row[3]])
-            else:
-                csv_records.append([replace_chinese_numerals(row[0]), purify(row[2]), row[2], row[3]])
-        # print(f"CSV records: {len(csv_records)}")
-    
-    latest_records = []
-    with open(LATEST_TXT, 'r', encoding='utf-8') as f:
-        lines = f.readlines()
-        for line in lines[2:]:
+UNMATCH = ['时间', '少女', '再见宣言', '强袭魔女', '秋之回忆', '秋之回忆2', '魔王', '青梅竹马', '弹珠汽水']
+
+def merge():
+    df_post = pd.read_csv(POST_LIST_FILE, encoding='utf-8')
+    df_post.drop_duplicates(subset=['novel_title'], keep='first', inplace=True)
+    df_post.reset_index(drop=True, inplace=True)
+    df_post['volume'] = df_post['post_title'].apply(replace_chinese_numerals)
+    # df_post['post_main'] = df_post['novel_title'].apply(lambda x: x[:x.rfind('(')] if x[-1] == ')' else x)
+    df_post['post_alt'] = df_post['novel_title'].apply(lambda x: x[x.rfind('(')+1:-1] if x[-1] == ')' else "")
+    df_post['post_pure'] = df_post['novel_title'].apply(purify)
+    df_post['post_alt_pure'] = df_post['post_alt'].apply(purify)
+    df_post.drop(columns=['post_title'], inplace=True)
+
+    df_post['dl_label'] = ""
+    df_post['dl_pwd'] = ""
+    df_post['dl_update'] = ""
+    df_post['txt_matched'] = False
+
+    # merge dl to post
+    with open(DL_FILE, 'r', encoding='utf-8') as f:
+        lines = f.readlines()[2:]
+        for line in lines:
             parts = line.strip().split()
-            if parts[1] == 'b04e6koyd':
+            if len(parts) < 4:
                 continue
-            elif parts[1] == 'b04e85ohi':
-                _name = '密室中的霍尔顿'
-            elif parts[1] == 'b00g38fzcb':
-                _name = '某科学的超电磁炮'
-            elif parts[1] == 'b04esk38d':
-                _name = 'Lycoris Recoil 莉可丽丝 Ordinary days'
-            elif parts[1] == 'b00g2u013e':
-                _name = 'Tier1姐妹'
-            # elif '_' in parts[3]:
-            #     _name = parts[3].replace('_', ' ')
-            else:
-                _name = parts[3]
-            latest_records.append([parts[0], parts[1], parts[2], _name])
+            mask = df_post['post_pure'].str.match(purify(parts[3]))
+            if mask.any():
+                df_post.loc[mask, 'dl_update'] = parts[0]
+                df_post.loc[mask, 'dl_label'] = parts[1]
+                df_post.loc[mask, 'dl_pwd'] = parts[2]
+            #     if mask.sum() > 1:
+            #         print(f'[WARN] {mask.sum()} entries matched for {parts[3]}')
+            # else:
+            #     print(f'[WARN] Failed to match {parts[3]}')
     
-    output = []
-    for latest in latest_records:
-        p_latest = purify(latest[3])
-        matched = None
-        for record in csv_records:
-            if p_latest in record[1]:
-                matched = record
-                break
-        if matched:
-            output.append({
-                'post_title': matched[0],
-                'novel_title': matched[2],
-                'novel_link': matched[3],
-                'updated': latest[0],
-                'url': latest[1],
-                'pwd': latest[2],
-            })
+    # merge post to txt
+    df_txt = pd.read_csv(TXT_LIST_FILE, encoding='utf-8')
+    df_txt['txt_pure'] = df_txt['title'].apply(purify) # 4
+    df_txt['volume'] = '' # 5
+    df_txt['dl_label'] = '' # 6
+    df_txt['dl_pwd'] = '' # 7
+    df_txt['dl_update'] = None # 8
+    df_txt['novel_title'] = '' # 9
+    df_txt['novel_link'] = '' # 10
+    for i in range(len(df_txt)):
+        _title = df_txt.iloc[i, 0]
+        if _title in UNMATCH:
+            continue
+        mask = df_post['post_pure'].str.match(df_txt.iloc[i, 4]) & (df_post['txt_matched'] == False)
+        match = None
+        if mask.any():
+            if _title.startswith('魔女之旅'):
+                match = mask[mask].index[1]
+            else:
+                match = mask[mask].index[0]
+            # if mask.sum() > 1:
+            #     print(f'[WARN] {mask.sum()} entries matched for {_title}')
+            #     for j in range(len(df_post)):
+            #         if mask[j]:
+            #             print(f'    {df_post.iloc[j]["novel_title"]}')
         else:
-            output.append({
-                'post_title': '',
-                'novel_title': latest[3],
-                'novel_link': '',
-                'updated': latest[0],
-                'url': latest[1],
-                'pwd': latest[2],
-            })
+            mask = df_post['post_alt_pure'].str.match(df_txt.iloc[i, 4]) & (df_post['txt_matched'] == False)
+            if mask.any():
+                match = mask[mask].index[0]
+                # if mask.sum() > 1:
+                #     print(f'[WARN] {mask.sum()} entries matched for {_title}')
+                #     for j in range(len(df_post)):
+                #         if mask[j]:
+                #             print(f'    {df_post.iloc[j]["novel_title"]}')
+        if match is not None:
+            df_txt.iloc[i, 5] = df_post.iloc[match]['volume']
+            df_txt.iloc[i, 6] = df_post.iloc[match]['dl_label']
+            df_txt.iloc[i, 7] = df_post.iloc[match]['dl_pwd']
+            df_txt.iloc[i, 8] = df_post.iloc[match]['dl_update']
+            df_txt.iloc[i, 9] = df_post.iloc[match]['novel_title']
+            df_txt.iloc[i, 10] = df_post.iloc[match]['novel_link']
+            df_post.iloc[match, -1] = True
+    
+    _mask = df_post['txt_matched'] == False
+    for y in df_post[_mask].itertuples():
+        if y.dl_label == "":
+            continue
+        df_txt.loc[len(df_txt)] = ["", "", None, "", "", y.volume, y.dl_label, y.dl_pwd, y.dl_update, y.novel_title, y.novel_link]
+    
+    df_txt['title'] = df_txt.apply(lambda x: x['novel_title'] if x['novel_title'] else x['title'], axis=1)
+    df_txt['update'] = df_txt.apply(lambda x: x['dl_update'] if x['dl_update'] else x['date'], axis=1)
+    df_txt['main'] = df_txt['title'].apply(lambda x: x[:x.rfind('(')] if x[-1] == ')' else x)
+    df_txt['alt'] = df_txt['title'].apply(lambda x: x[x.rfind('(')+1:-1] if x[-1] == ')' else "")
+    df_txt.drop(columns=['title', 'date', 'txt_pure', 'novel_title'], inplace=True)
+    df_txt.sort_values(by=['update'], ascending=False, inplace=True)
+    df_txt.to_csv(MERGED_CSV, index=False, encoding='utf-8-sig')
 
-    with open(OUTPUT_JSON, 'w', encoding='utf-8') as f:
-        # minimal JSON output
-        json.dump(output, f, ensure_ascii=False, separators=(',', ':'))
-    print(f"Matched summary saved to {OUTPUT_JSON}")
-# END data processing
+# ========== HTML Generation ==========
 
-# BEGIN HTML generation
-def create_html_table(data):
+def create_table_merged(df):
     rows = []
-    for item in data:
-        novel_title = item.get("novel_title", "N/A")
-        novel_link = item.get("novel_link", "https://www.wenku8.net/")
-        post_title = item.get("post_title", "N/A")
-        updated = item.get("updated", "N/A")
-        url = item.get("url", "")
-        pwd = item.get("pwd", "N/A")
-        lanzou_link = f"https://wwyt.lanzov.com/{url}" if url else "#"
-        lanzou_text = url if url else "N/A"
-        novel_alternate_title = None
-        if novel_title[-1] == ')': # 半角括号
-            last_bracket = novel_title.rfind('(')
-            novel_alternate_title = novel_title[last_bracket+1:-1]
-            novel_title = novel_title[:last_bracket]
-        # if len(post_title) > 2 and post_title[0] == '第' and post_title[-1] == '卷':
-        #     post_title = post_title[1:-1]
-        if re.search(r'第 \S+ 卷', post_title):
-            post_title = re.sub(r'第 (\S+) 卷', r'\1', post_title)
-        # https://www.wenku8.net/book/2751.htm -> https://www.wenku8.net/novel/2/2751/index.htm
-        # online_read_link = re.sub(r'book/(\d+).htm', r'novel/2/\1/index.htm', novel_link)
-
-        alt_html = f"<span class='at'>{novel_alternate_title}</span>" if novel_alternate_title else ''
+    for _, row in df.iterrows():
+        _l, _m, _a, _txt, _dll, _u, _at, _v = row['novel_link'], row['main'], row['alt'], row['download_url'], row['dl_label'], row['update'], row['author'], row['volume']
+        novel_link = None if pd.isna(_l) else _l
+        title_html = f'<a href="{novel_link}" target="_blank">{_m}</a>' if novel_link else _m
+        alt_html = '' if pd.isna(_a) else f"<span class='at'>{_a}</span>"
+        txt_dl = '' if pd.isna(_txt) else f"<a href='{_txt}' target='_blank'>下载</a> <a href='https://ghproxy.com/{_txt}' target='_blank'>镜像</a>"
+        volume = '' if pd.isna(_v) else _v
+        # volume = volume[:3].strip() if len(volume) > 3 else volume
+        lz_dl = '' if pd.isna(_dll) else f"<a href='https://wwyt.lanzov.com/{_dll}' target='_blank'>({volume})</a>"
+        date = '' if pd.isna(_u) else _u
+        author = '' if pd.isna(_at) else _at
+        lz_pwd = '' if pd.isna(_dll) else row['dl_pwd']
         rows.append(
-            f"<tr><td class='nt'><a href='{novel_link}' target='_blank'>{novel_title}</a>{alt_html}</td>"
-            f"<td class='dl'><a href='{lanzou_link}' target='_blank'>{lanzou_text}</a></td>"
-            f"<td>{pwd}</td><td>{post_title}</td><td>{updated}</td></tr>"
+            f"<tr><td>{title_html}{alt_html}</td>"
+            f"<td class='au'>{author}</td><td>{lz_dl}</td><td>{lz_pwd}</td>"
+            f"<td class='dl'>{txt_dl}</td><td class='yd'>{date}</td></tr>"
         )
     return ''.join(rows)
 
-def generate_html_file(data, output_filename="index.html"):
-    table_content = create_html_table(data)
+def create_html_merged():
+    df = pd.read_csv(MERGED_CSV, encoding='utf-8-sig')
+    table = create_table_merged(df)
+    today = time.strftime('%Y-%m-%d', time.localtime())
+    html = (
+        '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">'
+        '<meta name="viewport"content="width=device-width,initial-scale=1.0">'
+        '<meta name="keywords"content="轻小说,sf轻小说,dmzj轻小说,日本轻小说,动漫小说,轻小说电子书,轻小说EPUB下载">'
+        '<meta name="description"content="轻小说文库 EPUB 下载，支持搜索关键字、跳转至源站和蓝奏云下载，已进行移动端适配。">'
+        '<meta name="author"content="mojimoon"><title>轻小说文库 EPUB 下载+</title>'
+        '<link rel="stylesheet"href="style.css"></head><body>'
+        '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载+</h1>'
+        f'<h3>By <a href="https://github.com/mojimoon">mojimoon</a> | <a href="https://github.com/mojimoon/wenku8">Star me</a> | {today}</h3>'
+        '<span>所有内容均收集于网络，仅供学习交流使用。'
+        '特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=gbk">酷儿加冰</a> 和 <a href="https://github.com/ixinzhi">布客新知</a> 整理。</span>'
+        '<span class="at">蓝奏为 Calibre 生成 EPUB，括号内为最新卷数；合集为纯文本 EPUB。</span>'
+        '<div class="right-controls"><a href="./index.html">'
+        '<button class="btn"id="gotoButton">切换到仅 EPUB 源</button></a>'
+        '<button class="btn"id="themeToggle">主题</button>'
+        '<button class="btn"id="clearInput">清除</button></div>'
+        '<div class="search-bar"><input type="text"id="searchInput"placeholder="搜索">'
+        '<button class="btn"id="randomButton">随机</button></div>'
+        '<table><thead><tr><th>标题</th><th>作者</th><th>蓝奏</th><th>密码</th><th>合集</th><th>更新</th></tr>'
+        '</thead><tbody id="novelTableBody">'
+        f'{table}</tbody></table><script src="script_merged.js"></script>'
+        '</body></html>'
+    )
+    with open(MERGED_HTML, 'w', encoding='utf-8') as f:
+        f.write(html)
 
-    today = time.strftime("%Y-%m-%d", time.localtime())
+def create_table_epub(df):
+    rows = []
+    for _, row in df.iterrows():
+        _l, _m, _a, _dll = row['novel_link'], row['main'], row['alt'], row['dl_label']
+        novel_link = None if pd.isna(_l) else _l
+        title_html = f'<a href="{novel_link}" target="_blank">{_m}</a>' if novel_link else _m
+        alt_html = '' if pd.isna(_a) else f"<span class='at'>{_a}</span>"
+        lz_dl = f"<a href='https://wwyt.lanzov.com/{_dll}' target='_blank'>({row['volume']})</a>"
+        rows.append(
+            f"<tr><td>{title_html}{alt_html}</td>"
+            f"<td class='au'>{row['author']}</td><td>{lz_dl}</td><td>{row['dl_pwd']}</td>"
+            f"<td class='yd'>{row['update']}</td></tr>"
+        )
+    return ''.join(rows)
 
+def create_html_epub():
+    df = pd.read_csv(MERGED_CSV, encoding='utf-8-sig')
+    df = df[df['dl_label'].notna()]
+    table = create_table_epub(df)
+    today = time.strftime('%Y-%m-%d', time.localtime())
     html = (
         '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">'
         '<meta name="viewport"content="width=device-width,initial-scale=1.0">'
@@ -356,35 +343,33 @@ def generate_html_file(data, output_filename="index.html"):
         '<link rel="stylesheet"href="style.css"></head><body>'
         '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载</h1>'
         f'<h3>By <a href="https://github.com/mojimoon">mojimoon</a> | <a href="https://github.com/mojimoon/wenku8">Star me</a> | {today}</h3>'
-        '<span>所有内容均收集于网络、仅供学习交流使用，本站仅作整理工作。特别感谢 @<a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=gbk">酷儿加冰</a> 整理。</span>'
-        '<span class="at">蓝奏链接前缀均为 https://wwyt.lanzov.com/</span>'
-        '<div class="right-controls"><a href="./txt.html">'
-        '<button class="btn"id="gotoButton">切换到 TXT 源 (内容更全)</button></a>'
+        '<span>所有内容均收集于网络，仅供学习交流使用。'
+        '特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=gbk">酷儿加冰</a> 整理。</span>'
+        '<span class="at">括号内为最新卷数。</span>'
+        '<div class="right-controls"><a href="./merged.html">'
+        '<button class="btn"id="gotoButton">切换到 EPUB/TXT 源</button></a>'
         '<button class="btn"id="themeToggle">主题</button>'
         '<button class="btn"id="clearInput">清除</button></div>'
         '<div class="search-bar"><input type="text"id="searchInput"placeholder="搜索">'
         '<button class="btn"id="randomButton">随机</button></div>'
-        '<table><thead><tr><th>小说</th><th>蓝奏链接</th><th>密码</th><th><span class="mobile-hidden">最新</span>卷</th><th>更新</th></tr>'
+        '<table><thead><tr><th>标题</th><th>作者</th><th>蓝奏</th><th>密码</th><th>更新</th></tr>'
         '</thead><tbody id="novelTableBody">'
-        f'{table_content}</tbody></table><script src="script.js"></script>'
+        f'{table}</tbody></table><script src="script_merged.js"></script>'
         '</body></html>'
     )
-    with open(output_filename, 'w', encoding='utf-8') as f:
+    with open(EPUB_HTML, 'w', encoding='utf-8') as f:
         f.write(html)
 
-def html():
-    with open(OUTPUT_JSON, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-    generate_html_file(data, INDEX_HTML)
-# END HTML generation
+def main():
+    if not os.path.exists(OUT_DIR):
+        os.mkdir(OUT_DIR)
+    if not os.path.exists(PUBLIC_DIR):
+        os.mkdir(PUBLIC_DIR)
+    
+    scrape()
+    merge()
+    create_html_merged()
+    create_html_epub()
 
 if __name__ == '__main__':
-    if len(sys.argv) == 3:
-        last_page = int(sys.argv[1])
-        total_pages = int(sys.argv[2])
-        resume(last_page, total_pages)
-    else:
-        scrape()
-
-    match_summary()
-    html()
+    main()

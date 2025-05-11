@@ -4,11 +4,11 @@
 
 自动化从 [轻小说文库](https://www.wenku8.net) 获取 EPUB 格式电子书，并将结果整合为网页呈现：
 
-- [mojimoon.github.io/wenku8/](https://mojimoon.github.io/wenku8/)：EPUB 源
-    - 推荐使用，样式美观，更新较快
-- [mojimoon.github.io/wenku8/merged.html](https://mojimoon.github.io/wenku8/merged.html)：EPUB 源 + TXT 源
-    - 内容更全，但由于条目太多，移动端可能出现性能问题
+- [mojimoon.github.io/wenku8](https://mojimoon.github.io/wenku8/index.html)：EPUB 源 + TXT 源
+    - 内容全面，但条目数多，可能加载较慢
     - 特别感谢 [布客新知](https://github.com/ixinzhi) 整理 
+- [mojimoon.github.io/wenku8/epub.html](https://mojimoon.github.io/wenku8/epub.html)：EPUB 源
+    - 仅包含 EPUB 源，适合移动端浏览
 
 ## 开始
 
@@ -34,6 +34,6 @@ pip install -r requirements.txt
 - `merge()` 合并、去重并与 TXT 源进行匹配
     - 输出：`out/merged.csv`
 - `create_html_merged(), create_html_epub()` 生成 HTML 文件
-    - 输出：`public/merged.html`, `public/index.html`
+    - 输出：`public/index.html`, `public/epub.html`
 
 此外，GitHub Actions 会每天自动运行 `main.py`，并将 `public` 目录部署到 GitHub Pages。

@@ -22,8 +22,8 @@ POST_LIST_FILE = os.path.join(OUT_DIR, 'post_list.csv')
 TXT_LIST_FILE = os.path.join(OUT_DIR, 'txt_list.csv')
 DL_FILE = os.path.join(OUT_DIR, 'dl.txt')
 MERGED_CSV = os.path.join(OUT_DIR, 'merged.csv')
-EPUB_HTML = os.path.join(PUBLIC_DIR, 'index.html')
-MERGED_HTML = os.path.join(PUBLIC_DIR, 'merged.html')
+EPUB_HTML = os.path.join(PUBLIC_DIR, 'epub.html')
+MERGED_HTML = os.path.join(PUBLIC_DIR, 'index.html')
 
 retry_strategy = Retry(
     total=5,
@@ -300,7 +300,7 @@ def create_html_merged():
         '<span>所有内容均收集于网络，仅供学习交流使用。'
         '特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=gbk">酷儿加冰</a> 和 <a href="https://github.com/ixinzhi">布客新知</a> 整理。</span>'
         '<span class="at">蓝奏为 Calibre 生成 EPUB，括号内为最新卷数；合集为纯文本 EPUB。</span>'
-        '<div class="right-controls"><a href="./index.html">'
+        '<div class="right-controls"><a href="./epub.html">'
         '<button class="btn"id="gotoButton">切换到仅 EPUB 源</button></a>'
         '<button class="btn"id="themeToggle">主题</button>'
         '<button class="btn"id="clearInput">清除</button></div>'
@@ -344,9 +344,8 @@ def create_html_epub():
         '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载</h1>'
         f'<h3>By <a href="https://github.com/mojimoon">mojimoon</a> | <a href="https://github.com/mojimoon/wenku8">Star me</a> | {today}</h3>'
         '<span>所有内容均收集于网络，仅供学习交流使用。'
-        '特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=gbk">酷儿加冰</a> 整理。</span>'
-        '<span class="at">括号内为最新卷数。</span>'
-        '<div class="right-controls"><a href="./merged.html">'
+        '特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=gbk">酷儿加冰</a> 整理。括号内为最新卷数。</span>'
+        '<div class="right-controls"><a href="./index.html">'
         '<button class="btn"id="gotoButton">切换到 EPUB/TXT 源</button></a>'
         '<button class="btn"id="themeToggle">主题</button>'
         '<button class="btn"id="clearInput">清除</button></div>'

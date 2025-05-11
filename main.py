@@ -165,7 +165,8 @@ def replace_chinese_numerals(s):
         s = s.replace(cn_num, f' {arabic_num} ')
     match = re.search(r'第 (\S+) 卷', s)
     if match:
-        return match.group(1)
+        s = s.replace('第 ', '')
+        s = s.replace(' 卷', '')
     return s
 
 UNMATCH = ['时间', '少女', '再见宣言', '强袭魔女', '秋之回忆', '秋之回忆2', '魔王', '青梅竹马', '弹珠汽水']
@@ -216,7 +217,7 @@ def merge():
         _title = df_txt.iloc[i, 0]
         if _title in UNMATCH:
             continue
-        mask = df_post['post_pure'].str.match(df_txt.iloc[i, 4])
+        mask = df_post['post_pure'].str.match(df_txt.iloc[i, 4]) & (df_post['txt_matched'] == False)
         match = None
         if mask.any():
             if _title.startswith('魔女之旅'):
@@ -229,7 +230,7 @@ def merge():
             #         if mask[j]:
             #             print(f'    {df_post.iloc[j]["novel_title"]}')
         else:
-            mask = df_post['post_alt_pure'].str.match(df_txt.iloc[i, 4])
+            mask = df_post['post_alt_pure'].str.match(df_txt.iloc[i, 4]) & (df_post['txt_matched'] == False)
             if mask.any():
                 match = mask[mask].index[0]
                 # if mask.sum() > 1:
@@ -257,7 +258,7 @@ def merge():
     df_txt['main'] = df_txt['title'].apply(lambda x: x[:x.rfind('(')] if x[-1] == ')' else x)
     df_txt['alt'] = df_txt['title'].apply(lambda x: x[x.rfind('(')+1:-1] if x[-1] == ')' else "")
     df_txt.drop(columns=['title', 'date', 'txt_pure', 'novel_title'], inplace=True)
-    
+    df_txt.sort_values(by=['update'], ascending=False, inplace=True)
     df_txt.to_csv(MERGED_CSV, index=False, encoding='utf-8-sig')
 
 # ========== HTML Generation ==========
@@ -271,14 +272,14 @@ def create_table_merged(df):
         alt_html = '' if pd.isna(_a) else f"<span class='at'>{_a}</span>"
         txt_dl = '' if pd.isna(_txt) else f"<a href='{_txt}' target='_blank'>下载</a> <a href='https://ghproxy.com/{_txt}' target='_blank'>镜像</a>"
         volume = '' if pd.isna(_v) else _v
-        volume = volume[:3].strip() if len(volume) > 3 else volume
+        # volume = volume[:3].strip() if len(volume) > 3 else volume
         lz_dl = '' if pd.isna(_dll) else f"<a href='https://wwyt.lanzov.com/{_dll}' target='_blank'>({volume})</a>"
         date = '' if pd.isna(_u) else _u
         author = '' if pd.isna(_at) else _at
         lz_pwd = '' if pd.isna(_dll) else row['dl_pwd']
         rows.append(
-            f"<tr><td class='nt'>{title_html}{alt_html}</td>"
-            f"<td>{author}</td><td>{lz_dl}</td><td>{lz_pwd}</td>"
+            f"<tr><td>{title_html}{alt_html}</td>"
+            f"<td class='au'>{author}</td><td>{lz_dl}</td><td>{lz_pwd}</td>"
             f"<td class='dl'>{txt_dl}</td><td class='yd'>{date}</td></tr>"
         )
     return ''.join(rows)
@@ -292,13 +293,13 @@ def create_html_merged():
         '<meta name="viewport"content="width=device-width,initial-scale=1.0">'
         '<meta name="keywords"content="轻小说,sf轻小说,dmzj轻小说,日本轻小说,动漫小说,轻小说电子书,轻小说EPUB下载">'
         '<meta name="description"content="轻小说文库 EPUB 下载，支持搜索关键字、跳转至源站和蓝奏云下载，已进行移动端适配。">'
-        '<meta name="author"content="mojimoon"><title>轻小说文库 EPUB 下载</title>'
+        '<meta name="author"content="mojimoon"><title>轻小说文库 EPUB 下载+</title>'
         '<link rel="stylesheet"href="style.css"></head><body>'
-        '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载 </h1>'
+        '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载+</h1>'
         f'<h3>By <a href="https://github.com/mojimoon">mojimoon</a> | <a href="https://github.com/mojimoon/wenku8">Star me</a> | {today}</h3>'
         '<span>所有内容均收集于网络，仅供学习交流使用。'
         '特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=gbk">酷儿加冰</a> 和 <a href="https://github.com/ixinzhi">布客新知</a> 整理。</span>'
-        '<span class="at">蓝奏为 EPUB 源，合集为纯文本源，格式均为 EPUB。</span>'
+        '<span class="at">蓝奏为 Calibre 生成 EPUB，合集为纯文本 EPUB。</span>'
         '<div class="right-controls"><a href="./index.html">'
         '<button class="btn"id="gotoButton">切换到仅 EPUB 源</button></a>'
         '<button class="btn"id="themeToggle">主题</button>'

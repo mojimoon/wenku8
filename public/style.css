@@ -95,7 +95,7 @@ table {
 
 th, td {
     border: 1px solid #dee2e6;
-    padding: 12px 15px;
+    padding: 8px 12px;
     text-align: left;
 }
 
@@ -179,6 +179,9 @@ a:hover {
     }
     .yd {
         min-width: 2.2rem;
+    }
+    .au {
+        max-width: 4rem;
     }
 }
 

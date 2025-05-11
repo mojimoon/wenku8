@@ -22,8 +22,8 @@ POST_LIST_FILE = os.path.join(OUT_DIR, 'post_list.csv')
 TXT_LIST_FILE = os.path.join(OUT_DIR, 'txt_list.csv')
 DL_FILE = os.path.join(OUT_DIR, 'dl.txt')
 MERGED_CSV = os.path.join(OUT_DIR, 'merged.csv')
-EPUB_HTML = os.path.join(OUT_DIR, 'index.html')
-MERGED_HTML = os.path.join(OUT_DIR, 'merged.html')
+EPUB_HTML = os.path.join(PUBLIC_DIR, 'index.html')
+MERGED_HTML = os.path.join(PUBLIC_DIR, 'merged.html')
 
 retry_strategy = Retry(
     total=5,
@@ -195,9 +195,9 @@ def merge():
                 continue
             mask = df_post['post_pure'].str.match(purify(parts[3]))
             if mask.any():
-                df_post.loc[mask, 'dl_label'] = parts[0]
-                df_post.loc[mask, 'dl_pwd'] = parts[1]
-                df_post.loc[mask, 'dl_update'] = parts[2]
+                df_post.loc[mask, 'dl_update'] = parts[0]
+                df_post.loc[mask, 'dl_label'] = parts[1]
+                df_post.loc[mask, 'dl_pwd'] = parts[2]
             #     if mask.sum() > 1:
             #         print(f'[WARN] {mask.sum()} entries matched for {parts[3]}')
             # else:
@@ -260,6 +260,56 @@ def merge():
     
     df_txt.to_csv(MERGED_CSV, index=False, encoding='utf-8-sig')
 
+# ========== HTML Generation ==========
+
+def create_table_merged(df):
+    rows = []
+    for _, row in df.iterrows():
+        _l, _m, _a, _txt, _dll, _u, _at = row['novel_link'], row['main'], row['alt'], row['download_url'], row['dl_label'], row['update'], row['author']
+        novel_link = None if pd.isna(_l) else _l
+        title_html = f'<a href="{novel_link}" target="_blank">{_m}</a>' if novel_link else _m
+        alt_html = '' if pd.isna(_a) else f"<span class='at'>{_a}</span>"
+        txt_dl = '' if pd.isna(_txt) else f"<a href='{_txt}' target='_blank'>下载</a> <a href='https://ghproxy.com/{_txt}' target='_blank'>镜像</a>"
+        lz_dl = '' if pd.isna(_dll) else f"<a href='https://wwyt.lanzov.com/{_dll}' target='_blank'>({row['volume']})</a>"
+        date = '' if pd.isna(_u) else _u
+        author = '' if pd.isna(_at) else _at
+        lz_pwd = '' if pd.isna(_dll) else row['dl_pwd']
+        rows.append(
+            f"<tr><td class='nt'>{title_html}{alt_html}</td>"
+            f"<td>{author}</td><td>{lz_dl}</td><td>{lz_pwd}</td>"
+            f"<td class='dl'>{txt_dl}</td><td class='yd'>{date}</td></tr>"
+        )
+    return ''.join(rows)
+
+def create_html_merged():
+    df = pd.read_csv(MERGED_CSV, encoding='utf-8-sig')
+    table = create_table_merged(df)
+    today = time.strftime('%Y-%m-%d', time.localtime())
+    html = (
+        '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">'
+        '<meta name="viewport"content="width=device-width,initial-scale=1.0">'
+        '<meta name="keywords"content="轻小说,sf轻小说,dmzj轻小说,日本轻小说,动漫小说,轻小说电子书,轻小说EPUB下载">'
+        '<meta name="description"content="轻小说文库 EPUB 下载，支持搜索关键字、跳转至源站和蓝奏云下载，已进行移动端适配。">'
+        '<meta name="author"content="mojimoon"><title>轻小说文库 EPUB 下载</title>'
+        '<link rel="stylesheet"href="style.css"></head><body>'
+        '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载 </h1>'
+        f'<h3>By <a href="https://github.com/mojimoon">mojimoon</a> | <a href="https://github.com/mojimoon/wenku8">Star me</a> | {today}</h3>'
+        '<span>所有内容均收集于网络、仅供学习交流使用，本站仅作整理工作。'
+        '特别感谢 <a href="https://github.com/ixinzhi">布客新知</a> 整理。</span>'
+        '<div class="right-controls"><a href="./index.html">'
+        '<button class="btn"id="gotoButton">切换到仅 EPUB 源</button></a>'
+        '<button class="btn"id="themeToggle">主题</button>'
+        '<button class="btn"id="clearInput">清除</button></div>'
+        '<div class="search-bar"><input type="text"id="searchInput"placeholder="搜索">'
+        '<button class="btn"id="randomButton">随机</button></div>'
+        '<table><thead><tr><th>标题</th><th>作者</th><th>蓝奏</th><th>密码</th><th>合集</th><th>更新</th></tr>'
+        '</thead><tbody id="novelTableBody">'
+        f'{table}</tbody></table><script src="script_merged.js"></script>'
+        '</body></html>'
+    )
+    with open(MERGED_HTML, 'w', encoding='utf-8') as f:
+        f.write(html)
+
 def main():
     if not os.path.exists(OUT_DIR):
         os.mkdir(OUT_DIR)
@@ -268,6 +318,7 @@ def main():
     
     # scrape()
     merge()
+    create_html_merged()
 
 if __name__ == '__main__':
     main()

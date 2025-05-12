@@ -10,15 +10,21 @@
 - [mojimoon.github.io/wenku8/epub.html](https://mojimoon.github.io/wenku8/epub.html)：EPUB 源
     - 仅包含 EPUB 源，适合移动端浏览
 
-## 开始
+## Star History
+
+**如果您觉得这个项目有用，点个 Star 支持一下吧！**
+
+[![Star History Chart](https://api.star-history.com/svg?repos=mojimoon/wenku8&type=Date)](https://www.star-history.com/#mojimoon/wenku8&Date)
+
+## 使用方法
 
 ```bash
-git clone
+git clone https://github.com/mojimoon/wenku8
 cd wenku8
 pip install -r requirements.txt
 ```
+---
 
-## 使用方法
 运行 `txt.py` 将进行以下工作：
 
 - `scrape_all()` 获取最新的 TXT 源下载列表

@@ -45,3 +45,6 @@ pip install -r requirements.txt
     - 输出：`public/index.html`, `public/epub.html`
 
 此外，GitHub Actions 会每天自动运行 `main.py`，并将 `public` 目录部署到 GitHub Pages。
+
+> 为加快访问速度，使用的 HTML、CSS、JS 文件均已压缩（源代码在 `source` 目录下），且使用 jsDeliver CDN 加速。  
+> 可参考本人博客中 [加快 GitHub Pages 国内访问速度](https://mojimoon.github.io/blog/2025/speedup-github-page/) 一文。

@@ -270,7 +270,7 @@ def create_table_merged(df):
         novel_link = None if pd.isna(_l) else _l
         title_html = f'<a href="{novel_link}" target="_blank">{_m}</a>' if novel_link else _m
         alt_html = '' if pd.isna(_a) else f"<span class='at'>{_a}</span>"
-        txt_dl = '' if pd.isna(_txt) else f"<a href='{_txt}' target='_blank'>下载</a> <a href='https://ghproxy.com/{_txt}' target='_blank'>镜像</a>"
+        txt_dl = '' if pd.isna(_txt) else f"<a href='{_txt}' target='_blank'>下载</a> <a href='https://ghfast.top/{_txt}' target='_blank'>镜像</a>"
         volume = '' if pd.isna(_v) else _v
         # volume = volume[:3].strip() if len(volume) > 3 else volume
         lz_dl = '' if pd.isna(_dll) else f"<a href='https://wwyt.lanzov.com/{_dll}' target='_blank'>({volume})</a>"

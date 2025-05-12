@@ -16,9 +16,9 @@
 
 [![Star History Chart](https://api.star-history.com/svg?repos=mojimoon/wenku8&type=Date)](https://www.star-history.com/#mojimoon/wenku8&Date)
 
-<!-- <iframe style="width:100%;height:auto;min-width:600px;min-height:400px;" src="https://www.star-history.com/embed?secret=Z2l0aHViX3BhdF8xMUEyRlhSQUkwY1laZENlWjl0cGlhX1JuUTBaQmlnWkNyMkE4WTNndmVOTVZiakJoNkFjY3l4dVNwa0NpaGNOcmE2RkRPU0s3SVdGYlc3bUE1#mojimoon/wenku8&Date" frameBorder="0"></iframe> -->
-
 ## 使用方法
+
+克隆仓库并安装依赖：
 
 ```bash
 git clone https://github.com/mojimoon/wenku8
@@ -27,7 +27,7 @@ pip install -r requirements.txt
 ```
 ---
 
-运行 `txt.py` 将进行以下工作：
+运行 `txt.py`：
 
 - `scrape_all()` 获取最新的 TXT 源下载列表
     - 输出：`txt/*.csv`
@@ -35,7 +35,7 @@ pip install -r requirements.txt
 - `merge_csv()` 合并、去重
     - 输出：`out/txt_list.csv`
 
-运行 `main.py` 将进行以下工作：
+运行 `main.py`：
 
 - `scrape()` 获取最新的 EPUB 源下载列表
     - 输出：`out/dl.txt`, `out/post_list.csv`
@@ -44,7 +44,14 @@ pip install -r requirements.txt
 - `create_html_merged(), create_html_epub()` 生成 HTML 文件
     - 输出：`public/index.html`, `public/epub.html`
 
-此外，GitHub Actions 会每天自动运行 `main.py`，并将 `public` 目录部署到 GitHub Pages。
+此外，GitHub Actions 会每天自动运行 `main.py`，将 `public/` 目录提交到 `gh-pages` 分支并部署到 GitHub Pages。
 
-> 为加快访问速度，使用的 HTML、CSS、JS 文件均已压缩（源代码在 `source` 目录下），且使用 jsDeliver CDN 加速。  
+## 注意事项
+
+为加快访问速度，HTML、CSS、JS 文件均已压缩（源代码在 `source` 目录下），且使用 jsDeliver CDN 加速。  
+
 > 可参考本人博客中 [加快 GitHub Pages 国内访问速度](https://mojimoon.github.io/blog/2025/speedup-github-page/) 一文。
+
+## 许可证
+
+[MIT License](LICENSE)

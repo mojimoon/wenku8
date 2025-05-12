@@ -262,7 +262,7 @@ def merge():
     df_txt.to_csv(MERGED_CSV, index=False, encoding='utf-8-sig')
 
 # ========== HTML Generation ==========
-
+starme = '<iframe style="margin-left: 2px; margin-bottom:-5px;" frameborder="0" scrolling="0" width="81px" height="20px" src="https://ghbtns.com/github-btn.html?user=mojimoon&repo=wenku8&type=star&count=true" ></iframe>'
 def create_table_merged(df):
     rows = []
     for _, row in df.iterrows():
@@ -296,7 +296,7 @@ def create_html_merged():
         '<meta name="author"content="mojimoon"><title>轻小说文库 EPUB 下载+</title>'
         '<link rel="stylesheet"href="style.css"></head><body>'
         '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载+</h1>'
-        f'<h3>By <a href="https://github.com/mojimoon">mojimoon</a> | <a href="https://github.com/mojimoon/wenku8">Star me</a> | {today}</h3>'
+        f'<h4><a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {starme}({today})</h4>'
         '<span>所有内容均收集于网络，仅供学习交流使用。'
         '特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=gbk">酷儿加冰</a> 和 <a href="https://github.com/ixinzhi">布客新知</a> 整理。</span>'
         '<span class="at">蓝奏为 Calibre 生成 EPUB，括号内为最新卷数；合集为纯文本 EPUB。</span>'
@@ -342,7 +342,7 @@ def create_html_epub():
         '<meta name="author"content="mojimoon"><title>轻小说文库 EPUB 下载</title>'
         '<link rel="stylesheet"href="style.css"></head><body>'
         '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载</h1>'
-        f'<h3>By <a href="https://github.com/mojimoon">mojimoon</a> | <a href="https://github.com/mojimoon/wenku8">Star me</a> | {today}</h3>'
+        f'<h4><a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {starme}({today})</h4>'
         '<span>所有内容均收集于网络，仅供学习交流使用。'
         '特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=gbk">酷儿加冰</a> 整理。括号内为最新卷数。</span>'
         '<div class="right-controls"><a href="./index.html">'

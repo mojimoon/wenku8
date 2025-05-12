@@ -16,8 +16,6 @@
 
 [![Star History Chart](https://api.star-history.com/svg?repos=mojimoon/wenku8&type=Date)](https://www.star-history.com/#mojimoon/wenku8&Date)
 
-<!-- <iframe style="width:100%;height:auto;min-width:600px;min-height:400px;" src="https://www.star-history.com/embed?secret=Z2l0aHViX3BhdF8xMUEyRlhSQUkwY1laZENlWjl0cGlhX1JuUTBaQmlnWkNyMkE4WTNndmVOTVZiakJoNkFjY3l4dVNwa0NpaGNOcmE2RkRPU0s3SVdGYlc3bUE1#mojimoon/wenku8&Date" frameBorder="0"></iframe> -->
-
 ## 使用方法
 
 克隆仓库并安装依赖：

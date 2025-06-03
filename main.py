@@ -84,7 +84,7 @@ def get_latest(url):
 def parse_page(page_num):
     params['page'] = page_num
     resp = session.get(BASE_URL, params=params, timeout=10)
-    print(resp.text[:1000])
+    print(resp.text)
     resp.raise_for_status()
     resp.encoding = 'gbk'
     soup = BeautifulSoup(resp.text, 'html.parser')

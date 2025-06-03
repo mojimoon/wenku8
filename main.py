@@ -11,7 +11,7 @@ import re
 import json
 import os
 import pandas as pd
-from playwright.sync_api import sync_playwright
+# from playwright.sync_api import sync_playwright
 
 BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
 params = { 'keyword': '8691', 'charset': 'gbk', 'page': 1 }

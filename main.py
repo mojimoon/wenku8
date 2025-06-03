@@ -11,9 +11,11 @@ import re
 import json
 import os
 import pandas as pd
+from playwright.sync_api import sync_playwright
 
 BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
 params = { 'keyword': '8691', 'charset': 'gbk', 'page': 1 }
+SCRAPER = 'playwright'  # or 'requests'
 user_agents = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'
@@ -52,19 +54,62 @@ session.mount('http://', adapter)
 session.mount('https://', adapter)
 session.headers.update(HEADERS)
 
+browser = None
+
+def get_browser():
+    global browser
+    if browser is None:
+        playwright = sync_playwright().start()
+        browser = playwright.chromium.launch(headless=True, args=['--no-sandbox', '--disable-setuid-sandbox'])
+    return browser
+
+def scrape_page_playwright(url):
+    global browser
+    if browser is None:
+        browser = get_browser()
+    
+    with browser.new_context() as context:
+        page = context.new_page()
+        page.goto(url, wait_until='networkidle')
+        html_content = page.content()
+        page.close()
+    
+    return html_content
+
+def scrape_page_requests(url):
+    resp = session.get(url, timeout=10)
+    resp.raise_for_status()
+    resp.encoding = 'gbk'
+    return resp.text
+
+def scrape_page(url):
+    if SCRAPER == 'playwright':
+        return scrape_page_playwright(url)
+    elif SCRAPER == 'requests':
+        return scrape_page_requests(url)
+    else:
+        raise ValueError(f"Unknown scraper: {SCRAPER}")
+
+def build_url_with_params(base_url, params):
+    if not params:
+        return base_url
+    query_string = '&'.join(f"{key}={value}" for key, value in params.items())
+    return f"{base_url}?{query_string}"
+
 # ========== Scraping ==========
 last_page = 1
 def get_latest_url(post_link):
-    resp = session.get(post_link, timeout=10)
-    resp.raise_for_status()
-    resp.encoding = 'gbk'
+    # resp = session.get(post_link, timeout=10)
+    # resp.raise_for_status()
+    # resp.encoding = 'gbk'
+    txt = scrape_page(post_link)
 
     # <a href="https://paste.gentoo.zip" target="_blank">https://paste.gentoo.zip</a>/EsX5Kx8V
-    match = re.search(r'<a href="([^"]+)" target="_blank">([^<]+)</a>(/[^<]+)', resp.text)
+    match = re.search(r'<a href="([^"]+)" target="_blank">([^<]+)</a>(/[^<]+)', txt)
     link = match.group(1) + match.group(3) if match else None
     if link is None:
         # <a href="https://0x0.st/8QWZ.txt" target="_blank">https://0x0.st/8QWZ.txt</a><br>
-        match = re.search(r'https:\/\/[^"]+?\.txt(?=")', resp.text)
+        match = re.search(r'https:\/\/[^"]+?\.txt(?=")', txt)
         if match:
             link = match.group(0)
         else:
@@ -73,11 +118,11 @@ def get_latest_url(post_link):
     return link
 
 def get_latest(url):
-    resp = session.get(url, timeout=10)
-    resp.raise_for_status()
-    resp.encoding = 'utf-8'
+    # resp = session.get(url, timeout=10)
+    # resp.raise_for_status()
+    # resp.encoding = 'utf-8'
 
-    txt = resp.text
+    txt = scrape_page(url)
     lines = txt.split('\n')
     flg = [False] * 4
     for i in range(len(lines)):
@@ -99,10 +144,12 @@ def get_latest(url):
 
 def parse_page(page_num):
     params['page'] = page_num
-    resp = session.get(BASE_URL, params=params, timeout=10)
-    resp.raise_for_status()
-    resp.encoding = 'gbk'
-    soup = BeautifulSoup(resp.text, 'html.parser')
+    # resp = session.get(BASE_URL, params=params, timeout=10)
+    # resp.raise_for_status()
+    # resp.encoding = 'gbk'
+    url = build_url_with_params(BASE_URL, params)
+    txt = scrape_page(url)
+    soup = BeautifulSoup(txt, 'html.parser')
     table = soup.find_all('table', class_='grid')[1]
     rows = table.find_all('tr')[1:]  # skip header row
 

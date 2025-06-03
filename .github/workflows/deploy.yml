@@ -27,10 +27,10 @@ jobs:
           pip install -r requirements.txt
         fi
 
-    - name: Install Playwright browsers
-      run: |
-        pip install playwright
-        python -m playwright install --with-deps
+    # - name: Install Playwright browsers
+    #   run: |
+    #     pip install playwright
+    #     python -m playwright install --with-deps
 
     - name: Run main.py
       run: python main.py

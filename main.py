@@ -33,7 +33,7 @@ HEADERS = {
 }
 DOMAIN = 'https://www.wenku8.net'
 OUT_DIR = 'out'
-PUBLIC_DIR = 'public'
+PUBLIC_DIR = 'docs'
 POST_LIST_FILE = os.path.join(OUT_DIR, 'post_list.csv')
 TXT_LIST_FILE = os.path.join(OUT_DIR, 'txt_list.csv')
 DL_FILE = os.path.join(OUT_DIR, 'dl.txt')

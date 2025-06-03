@@ -14,8 +14,7 @@ import pandas as pd
 
 BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
 params = { 'keyword': '8691', 'charset': 'gbk', 'page': 1 }
-# HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3' }
-HEADERS = { 'User-Agent': 'Mozilla/5.0 (X11; Linux i686; rv:110.0) Gecko/20100101 Firefox/110.0.0' }
+HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3' }
 DOMAIN = 'https://www.wenku8.net'
 OUT_DIR = 'out'
 PUBLIC_DIR = 'public'
@@ -85,6 +84,7 @@ def get_latest(url):
 def parse_page(page_num):
     params['page'] = page_num
     resp = session.get(BASE_URL, params=params, timeout=10)
+    print(resp.text[:1000])
     resp.raise_for_status()
     resp.encoding = 'gbk'
     soup = BeautifulSoup(resp.text, 'html.parser')

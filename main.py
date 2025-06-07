@@ -11,7 +11,6 @@ import re
 import json
 import os
 import pandas as pd
-# from playwright.sync_api import sync_playwright
 
 BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
 params = { 'keyword': '8691', 'charset': 'utf-8', 'page': 1 }
@@ -58,6 +57,7 @@ session.headers.update(HEADERS)
 browser = None
 
 def get_browser():
+    from playwright.sync_api import sync_playwright
     global browser
     if browser is None:
         playwright = sync_playwright().start()

@@ -14,7 +14,7 @@ import pandas as pd
 # from playwright.sync_api import sync_playwright
 
 BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
-params = { 'keyword': '8691', 'charset': 'gbk', 'page': 1 }
+params = { 'keyword': '8691', 'charset': 'utf-8', 'page': 1 }
 # 'requests' | 'playwright'
 SCRAPER = 'requests'
 user_agents = [
@@ -30,9 +30,9 @@ HEADERS = {
     # 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
     'User-Agent': random.choice(user_agents),
     'Referer': 'https://www.wenku8.net/',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-    'Accept-Encoding': 'gzip, deflate, br'
+    # 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    # 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    # 'Accept-Encoding': 'gzip, deflate, br'
 }
 DOMAIN = 'https://www.wenku8.net'
 OUT_DIR = 'out'
@@ -80,7 +80,9 @@ def scrape_page_playwright(url):
 def scrape_page_requests(url):
     resp = session.get(url, timeout=10)
     resp.raise_for_status()
-    resp.encoding = 'gbk'
+    resp.encoding = 'utf-8'
+    # with open('debug.html', 'w', encoding='utf-8') as f:
+    #     f.write(resp.text)
     return resp.text
 
 def scrape_page(url):
@@ -102,7 +104,7 @@ last_page = 1
 def get_latest_url(post_link):
     # resp = session.get(post_link, timeout=10)
     # resp.raise_for_status()
-    # resp.encoding = 'gbk'
+    # resp.encoding = 'utf-8'
     txt = scrape_page(post_link)
 
     # <a href="https://paste.gentoo.zip" target="_blank">https://paste.gentoo.zip</a>/EsX5Kx8V
@@ -147,7 +149,7 @@ def parse_page(page_num):
     params['page'] = page_num
     # resp = session.get(BASE_URL, params=params, timeout=10)
     # resp.raise_for_status()
-    # resp.encoding = 'gbk'
+    # resp.encoding = 'utf-8'
     url = build_url_with_params(BASE_URL, params)
     txt = scrape_page(url)
     soup = BeautifulSoup(txt, 'html.parser')
@@ -362,7 +364,7 @@ def create_html_merged():
         '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载+</h1>'
         f'<h4>({today}) <a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {starme}</h4>'
         '<span>所有内容均收集于网络，仅供学习交流使用。'
-        '特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=gbk">酷儿加冰</a> 和 <a href="https://github.com/ixinzhi">布客新知</a> 整理。</span>'
+        '特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=utf-8">酷儿加冰</a> 和 <a href="https://github.com/ixinzhi">布客新知</a> 整理。</span>'
         '<span class="at">蓝奏为 Calibre 生成 EPUB，括号内为最新卷数；合集为纯文本 EPUB。</span>'
         '<div class="right-controls"><a href="./epub.html">'
         '<button class="btn"id="gotoButton">切换到仅 EPUB 源</button></a>'
@@ -408,7 +410,7 @@ def create_html_epub():
         '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载</h1>'
         f'<h4>({today}) <a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {starme}</h4>'
         '<span>所有内容均收集于网络，仅供学习交流使用。'
-        '特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=gbk">酷儿加冰</a> 整理。括号内为最新卷数。</span>'
+        '特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=utf-8">酷儿加冰</a> 整理。括号内为最新卷数。</span>'
         '<div class="right-controls"><a href="./index.html">'
         '<button class="btn"id="gotoButton">切换到 EPUB/TXT 源</button></a>'
         '<button class="btn"id="themeToggle">主题</button>'

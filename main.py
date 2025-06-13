@@ -383,14 +383,15 @@ def create_html_merged():
 def create_table_epub(df):
     rows = []
     for _, row in df.iterrows():
-        _l, _m, _a, _dll = row['novel_link'], row['main'], row['alt'], row['dl_label']
+        _l, _m, _a, _dll, _at = row['novel_link'], row['main'], row['alt'], row['dl_label'], row['author']
         novel_link = None if pd.isna(_l) else _l
         title_html = f'<a href="{novel_link}" target="_blank">{_m}</a>' if novel_link else _m
         alt_html = '' if pd.isna(_a) else f"<span class='at'>{_a}</span>"
         lz_dl = f"<a href='https://wwyt.lanzov.com/{_dll}' target='_blank'>({row['volume']})</a>"
+        author = '' if pd.isna(_at) else _at
         rows.append(
             f"<tr><td>{title_html}{alt_html}</td>"
-            f"<td class='au'>{row['author']}</td><td>{lz_dl}</td><td>{row['dl_pwd']}</td>"
+            f"<td class='au'>{author}</td><td>{lz_dl}</td><td>{row['dl_pwd']}</td>"
             f"<td class='yd'>{row['update']}</td></tr>"
         )
     return ''.join(rows)

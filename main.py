@@ -155,11 +155,8 @@ def get_latest(url):
     with open(DL_FILE, 'w', encoding='utf-8') as f:
         f.write(txt)
 
-def parse_page(page_num):
+def parse_page(page_num, latest_post_link=None):
     params['page'] = page_num
-    # resp = session.get(BASE_URL, params=params, timeout=10)
-    # resp.raise_for_status()
-    # resp.encoding = 'utf-8'
     url = build_url_with_params(BASE_URL, params)
     txt = scrape_page(url)
     soup = BeautifulSoup(txt, 'html.parser')
@@ -179,6 +176,10 @@ def parse_page(page_num):
         post_title = raw_title[:-5] if raw_title.endswith(' epub') else raw_title
         post_link = a_post['href'] if a_post['href'].startswith('http') else urljoin(DOMAIN, a_post['href'])
 
+        # 检查是否解析到已存在的最新帖子
+        if latest_post_link is not None and post_link == latest_post_link:
+            return entries, True  # 返回当前已收集的entries，并标记停止
+
         a_novel = cols[1].find('a')
         novel_title = a_novel.text.strip()
         novel_link = urljoin(DOMAIN, a_novel['href'])
@@ -195,23 +196,64 @@ def parse_page(page_num):
 
         if page_num == 1 and i == 0:
             get_latest(get_latest_url(post_link))
-    
+
     if page_num == 1:
         last = soup.find('a', class_='last')
         global last_page
         last_page = int(last.text) if last else 1
-    return entries
+    return entries, False
 
 def scrape():
-    entries = parse_page(1)
-    for page in range(2, last_page + 1):
+    # 获取POST_LIST_FILE中第一个post_link
+    latest_post_link = None
+    try:
+        with open(POST_LIST_FILE, 'r', encoding='utf-8') as f:
+            next(f)  # skip header
+            first_line = next(f, '').strip()
+            if first_line:
+                latest_post_link = first_line.split(',')[1]
+            file_exists = True
+    except FileNotFoundError:
+        file_exists = False
+
+    all_entries = []
+    stop = False
+
+    # 先爬第一页
+    print('[INFO] scrape (1)')
+    entries, found = parse_page(1, latest_post_link)
+    all_entries.extend(entries)
+    stop = found
+
+    # 继续爬剩余页数，直到遇到已存在帖子
+    page = 2
+    while not stop and page <= last_page:
         print(f'[INFO] scrape ({page}/{last_page})')
-        entries.extend(parse_page(page))
+        entries, found = parse_page(page, latest_post_link)
+        all_entries.extend(entries)
+        stop = found
+        if stop:
+            break
+        page += 1
         time.sleep(random.uniform(1, 3))
-    with open(POST_LIST_FILE, 'w', encoding='utf-8', newline='') as f:
-        f.write('post_title,post_link,novel_title,novel_link\n')
-        for entry in entries:
-            f.write(','.join(entry) + '\n')
+
+    # 新内容在前，拼接后写入
+    # with open(POST_LIST_FILE, 'w', encoding='utf-8', newline='') as f:
+    #     f.write('post_title,post_link,novel_title,novel_link\n')
+    #     for entry in all_entries:
+    #         f.write(','.join(entry) + '\n')
+    if not file_exists:
+        with open(POST_LIST_FILE, 'w', encoding='utf-8', newline='') as f:
+            f.write('post_title,post_link,novel_title,novel_link\n')
+            for entry in all_entries:
+                f.write(','.join(entry) + '\n')
+    else:
+        with open(POST_LIST_FILE, 'r+', encoding='utf-8', newline='') as f:
+            # insert between header and first line
+            lines = f.readlines()
+            lines = lines[:1] + [','.join(entry) + '\n' for entry in all_entries] + lines[1:]
+            f.seek(0)
+            f.writelines(lines)
 
 # ========== Data Processing ==========
 def purify(text): # 只保留中文、英文和数字

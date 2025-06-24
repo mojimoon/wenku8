@@ -11,6 +11,7 @@ import re
 import json
 import os
 import pandas as pd
+import sys
 
 BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
 params = { 'keyword': '8691', 'charset': 'utf-8', 'page': 1 }
@@ -141,9 +142,18 @@ def get_latest(url):
         elif not flg[3] and lines[i].endswith('君若星辰'):
             lines[i] = lines[i].replace('君若星辰', '宛如星辰的你')
             flg[3] = True
+    
+    txt = '\n'.join(lines)
+    # if the content has not changed, exit
+    if os.path.exists(DL_FILE):
+        with open(DL_FILE, 'r', encoding='utf-8') as f:
+            old_txt = f.read()
+        if old_txt == txt:
+            print('[INFO] Exiting, no update found.')
+            sys.exit(0)
 
     with open(DL_FILE, 'w', encoding='utf-8') as f:
-        f.write('\n'.join(lines))
+        f.write(txt)
 
 def parse_page(page_num):
     params['page'] = page_num

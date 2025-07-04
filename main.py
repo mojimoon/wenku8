@@ -412,7 +412,7 @@ def create_html_merged():
         '<meta name="keywords"content="轻小说,sf轻小说,dmzj轻小说,日本轻小说,动漫小说,轻小说电子书,轻小说EPUB下载">'
         '<meta name="description"content="轻小说文库 EPUB 下载，支持搜索关键字、跳转至源站和蓝奏云下载，已进行移动端适配。">'
         '<meta name="author"content="mojimoon"><title>轻小说文库 EPUB 下载+</title>'
-        '<link rel="stylesheet"href="https://cdn.jsdelivr.net/gh/mojimoon/wenku8@gh-pages/style.css"></head><body>'
+        '<link rel="stylesheet"href="https://gcore.jsdelivr.net/gh/mojimoon/wenku8@gh-pages/style.css"></head><body>'
         '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载+</h1>'
         f'<h4>({today}) <a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {starme}</h4>'
         '<span>所有内容均收集于网络，仅供学习交流使用。'
@@ -426,7 +426,7 @@ def create_html_merged():
         '<button class="btn"id="randomButton">随机</button></div>'
         '<table><thead><tr><th>标题</th><th>作者</th><th>最新</th><th>密码</th><th>年更</th><th>更新</th></tr>'
         '</thead><tbody id="novelTableBody">'
-        f'{table}</tbody></table><script src="https://cdn.jsdelivr.net/gh/mojimoon/wenku8@gh-pages/script_merged.js"></script>'
+        f'{table}</tbody></table><script src="https://gcore.jsdelivr.net/gh/mojimoon/wenku8@gh-pages/script_merged.js"></script>'
         '</body></html>'
     )
     with open(MERGED_HTML, 'w', encoding='utf-8') as f:
@@ -459,7 +459,7 @@ def create_html_epub():
         '<meta name="keywords"content="轻小说,sf轻小说,dmzj轻小说,日本轻小说,动漫小说,轻小说电子书,轻小说EPUB下载">'
         '<meta name="description"content="轻小说文库 EPUB 下载，支持搜索关键字、跳转至源站和蓝奏云下载，已进行移动端适配。">'
         '<meta name="author"content="mojimoon"><title>轻小说文库 EPUB 下载</title>'
-        '<link rel="stylesheet"href="https://cdn.jsdelivr.net/gh/mojimoon/wenku8@gh-pages/style.css"></head><body>'
+        '<link rel="stylesheet"href="https://gcore.jsdelivr.net/gh/mojimoon/wenku8@gh-pages/style.css"></head><body>'
         '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载</h1>'
         f'<h4>({today}) <a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {starme}</h4>'
         '<span>所有内容均收集于网络，仅供学习交流使用。'
@@ -472,7 +472,7 @@ def create_html_epub():
         '<button class="btn"id="randomButton">随机</button></div>'
         '<table><thead><tr><th>标题</th><th>作者</th><th>蓝奏</th><th>密码</th><th>更新</th></tr>'
         '</thead><tbody id="novelTableBody">'
-        f'{table}</tbody></table><script src="https://cdn.jsdelivr.net/gh/mojimoon/wenku8@gh-pages/script_merged.js"></script>'
+        f'{table}</tbody></table><script src="https://gcore.jsdelivr.net/gh/mojimoon/wenku8@gh-pages/script_merged.js"></script>'
         '</body></html>'
     )
     with open(EPUB_HTML, 'w', encoding='utf-8') as f:

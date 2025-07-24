@@ -338,10 +338,10 @@ def merge():
         mask = df_post['post_pure'].str.match(df_txt.iloc[i, 4]) & (df_post['txt_matched'] == False)
         match = None
         if mask.any():
-            if _title.startswith('魔女之旅'):
-                match = mask[mask].index[1]
-            else:
-                match = mask[mask].index[0]
+            # if _title.startswith('魔女之旅'):
+            #     match = mask[mask].index[1]
+            # else:
+            match = mask[mask].index[0]
             # if mask.sum() > 1:
             #     print(f'[WARN] {mask.sum()} entries matched for {_title}')
             #     for j in range(len(df_post)):

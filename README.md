@@ -25,6 +25,16 @@ git clone https://github.com/mojimoon/wenku8
 cd wenku8
 pip install -r requirements.txt
 ```
+
+代码提供了两种爬虫方式：`requests` 和 `playwright`。正常情况下使用 `requests` 即可，若遇到无法绕过 Cloudflare 验证的情况，可切换到 `playwright`。
+
+若需使用 `playwright`，需额外安装：
+
+```bash
+pip install pytest-playwright
+playwright install
+```
+
 ---
 
 运行 `txt.py`：

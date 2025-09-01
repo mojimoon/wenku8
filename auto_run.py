@@ -19,7 +19,7 @@ except subprocess.CalledProcessError:
 
 try:
     subprocess.check_call(["git", "add", "."])
-    subprocess.check_call(["git", "commit", "-m", f"Auto update {today}"])
+    subprocess.check_call(["git", "commit", "-m", f"Auto update for {today}"])
 except subprocess.CalledProcessError:
     pass
 

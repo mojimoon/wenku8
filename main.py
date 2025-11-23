@@ -312,7 +312,7 @@ def merge():
             parts = line.strip().split()
             if len(parts) < 4:
                 continue
-            mask = df_post['post_pure'].str.match(purify(parts[3]))
+            mask = df_post['post_pure'].str.match(purify(parts[-1]))
             if mask.any():
                 df_post.loc[mask, 'dl_update'] = parts[0]
                 df_post.loc[mask, 'dl_label'] = parts[1]

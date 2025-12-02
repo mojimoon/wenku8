@@ -56,23 +56,26 @@ session.mount('http://', adapter)
 session.mount('https://', adapter)
 session.headers.update(HEADERS)
 
+def parse_cookie_line(line: str):
+    line = line.strip()
+    if not line:
+        return {}
+    cookie_dict = {}
+    for part in line.split(';'):
+        part = part.strip()
+        if not part or '=' not in part:
+            continue
+        k, v = part.split('=', 1)
+        cookie_dict[k.strip()] = v.strip()
+    return cookie_dict
+
 def load_cookie_from_file(sess, filepath):
     if not os.path.exists(filepath):
         return
     with open(filepath, 'r', encoding='utf-8') as f:
         # 只取第一行，整行都是 "k1=v1; k2=v2; ..."
-        line = f.readline().strip()
-    if not line:
-        return
-    cookie_dict = {}
-    for part in line.split(';'):
-        part = part.strip()
-        if not part:
-            continue
-        if '=' not in part:
-            continue
-        k, v = part.split('=', 1)
-        cookie_dict[k.strip()] = v.strip()
+        line = f.readline()
+    cookie_dict = parse_cookie_line(line)
     if cookie_dict:
         jar = requests.utils.cookiejar_from_dict(cookie_dict)
         sess.cookies.update(jar)
@@ -80,37 +83,58 @@ def load_cookie_from_file(sess, filepath):
 load_cookie_from_file(session, COOKIE_FILE)
 
 browser = None
+playwright_ctx_cookie_dict = None  # 缓存解析后的 cookie，给 playwright 用
 
 def get_browser():
     from playwright.sync_api import sync_playwright
-    global browser
+    global browser, playwright_ctx_cookie_dict
     if browser is None:
         playwright = sync_playwright().start()
-        browser = playwright.chromium.launch(headless=True, args=['--no-sandbox', '--disable-setuid-sandbox'])
+        browser = playwright.chromium.launch(
+            headless=True,
+            args=['--no-sandbox', '--disable-setuid-sandbox']
+        )
+        # 预解析 COOKIE_FILE，供后面 new_context 使用
+        if os.path.exists(COOKIE_FILE):
+            with open(COOKIE_FILE, 'r', encoding='utf-8') as f:
+                line = f.readline()
+            playwright_ctx_cookie_dict = parse_cookie_line(line)
+        else:
+            playwright_ctx_cookie_dict = {}
     return browser
 
 def scrape_page_playwright(url):
-    global browser
+    global browser, playwright_ctx_cookie_dict
     if browser is None:
         browser = get_browser()
-    
+    # 每次新建 context，并注入 cookie
     with browser.new_context() as context:
+        if playwright_ctx_cookie_dict:
+            cookies = [
+                {
+                    "name": k,
+                    "value": v,
+                    "domain": "www.wenku8.net",
+                    "path": "/",
+                    # 可按需设置 "httpOnly" / "secure" / "sameSite"
+                }
+                for k, v in playwright_ctx_cookie_dict.items()
+            ]
+            context.add_cookies(cookies)
         page = context.new_page()
         page.goto(url, wait_until='networkidle')
+        if "/login.php" in page.url:
+            raise ValueError(f"[ERROR] Playwright 模式被重定向到登录页，可能需要更新 COOKIE 文件: {page.url}")
         html_content = page.content()
         page.close()
-    
     return html_content
 
 def scrape_page_requests(url):
     # 使用带 COOKIE 的 session 访问，自动跟随重定向
     resp = session.get(url, timeout=10, allow_redirects=True)
     final_url = resp.url
-    # 如果最终落在 login.php，大概率说明 COOKIE 已过期或不正确
     if '/login.php' in final_url:
-        print(f'[WARN] 被重定向到登录页，可能需要更新 COOKIE 文件: {final_url}')
-        # 你也可以选择这里直接 raise
-        # raise RuntimeError('COOKIE 失效或登录失败')
+        raise ValueError(f"[ERROR] Requests 模式被重定向到登录页，可能需要更新 COOKIE 文件: {final_url}")
     resp.raise_for_status()
     resp.encoding = 'utf-8'
     # with open('debug.html', 'w', encoding='utf-8') as f:

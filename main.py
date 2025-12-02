@@ -16,7 +16,7 @@ import sys
 BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
 params = { 'keyword': '8691', 'charset': 'utf-8', 'page': 1 }
 # 'requests' | 'playwright'
-SCRAPER = 'requests'
+SCRAPER = 'playwright'
 user_agents = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'
@@ -130,7 +130,6 @@ def scrape_page_playwright(url):
     return html_content
 
 def scrape_page_requests(url):
-    # 使用带 COOKIE 的 session 访问，自动跟随重定向
     resp = session.get(url, timeout=10, allow_redirects=True)
     final_url = resp.url
     if '/login.php' in final_url:

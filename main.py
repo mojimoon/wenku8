@@ -16,7 +16,7 @@ import sys
 BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
 params = { 'keyword': '8691', 'charset': 'utf-8', 'page': 1 }
 # 'requests' | 'playwright'
-SCRAPER = 'playwright'
+SCRAPER = 'requests'
 user_agents = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'
@@ -37,6 +37,7 @@ HEADERS = {
 DOMAIN = 'https://www.wenku8.net'
 OUT_DIR = 'out'
 PUBLIC_DIR = 'docs'
+COOKIE_FILE = os.path.join(os.path.dirname(__file__), 'COOKIE')
 POST_LIST_FILE = os.path.join(OUT_DIR, 'post_list.csv')
 TXT_LIST_FILE = os.path.join(OUT_DIR, 'txt_list.csv')
 DL_FILE = os.path.join(OUT_DIR, 'dl.txt')
@@ -54,6 +55,29 @@ adapter = HTTPAdapter(max_retries=retry_strategy)
 session.mount('http://', adapter)
 session.mount('https://', adapter)
 session.headers.update(HEADERS)
+
+def load_cookie_from_file(sess, filepath):
+    if not os.path.exists(filepath):
+        return
+    with open(filepath, 'r', encoding='utf-8') as f:
+        # 只取第一行，整行都是 "k1=v1; k2=v2; ..."
+        line = f.readline().strip()
+    if not line:
+        return
+    cookie_dict = {}
+    for part in line.split(';'):
+        part = part.strip()
+        if not part:
+            continue
+        if '=' not in part:
+            continue
+        k, v = part.split('=', 1)
+        cookie_dict[k.strip()] = v.strip()
+    if cookie_dict:
+        jar = requests.utils.cookiejar_from_dict(cookie_dict)
+        sess.cookies.update(jar)
+
+load_cookie_from_file(session, COOKIE_FILE)
 
 browser = None
 
@@ -79,7 +103,14 @@ def scrape_page_playwright(url):
     return html_content
 
 def scrape_page_requests(url):
-    resp = session.get(url, timeout=10)
+    # 使用带 COOKIE 的 session 访问，自动跟随重定向
+    resp = session.get(url, timeout=10, allow_redirects=True)
+    final_url = resp.url
+    # 如果最终落在 login.php，大概率说明 COOKIE 已过期或不正确
+    if '/login.php' in final_url:
+        print(f'[WARN] 被重定向到登录页，可能需要更新 COOKIE 文件: {final_url}')
+        # 你也可以选择这里直接 raise
+        # raise RuntimeError('COOKIE 失效或登录失败')
     resp.raise_for_status()
     resp.encoding = 'utf-8'
     # with open('debug.html', 'w', encoding='utf-8') as f:
@@ -98,6 +129,7 @@ def build_url_with_params(base_url, params):
     if not params:
         return base_url
     query_string = '&'.join(f"{key}={value}" for key, value in params.items())
+    # print(f'[DEBUG] Built URL: {base_url}?{query_string}')
     return f"{base_url}?{query_string}"
 
 # ========== Scraping ==========
@@ -159,6 +191,7 @@ def parse_page(page_num, latest_post_link=None):
     params['page'] = page_num
     url = build_url_with_params(BASE_URL, params)
     txt = scrape_page(url)
+    # print(txt)
     soup = BeautifulSoup(txt, 'html.parser')
     table = soup.find_all('table', class_='grid')[1]
     rows = table.find_all('tr')[1:]  # skip header row

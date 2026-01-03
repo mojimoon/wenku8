@@ -6,13 +6,12 @@ import pandas as pd
 
 API_URL = "https://api.github.com/repos/ixinzhi/{repo}/contents/"
 REPOS = [
-    # "lightnovel-2009to2013",
     "lightnovel-2014to2017",
-    # "lightnovel-2018to2020",
     "lightnovel-2021",
     "lightnovel-2022",
     "lightnovel-2023",
     "lightnovel-2024",
+    "lightnovel-2025"
 ]
 ALL_REPOS = [
     "lightnovel-2009to2013",
@@ -22,6 +21,7 @@ ALL_REPOS = [
     "lightnovel-2022",
     "lightnovel-2023",
     "lightnovel-2024",
+    "lightnovel-2025"
 ]
 HEADERS = {
     "Accept": "application/vnd.github.v3+json",
@@ -51,12 +51,15 @@ def scrape_repo(repo):
 
     df.to_csv(os.path.join(TXT_DIR, f"{repo}.csv"), index=False, encoding="utf-8-sig")
 
-def scrape_all():
+def incremental_scrape():
     if not os.path.exists(TXT_DIR):
         os.makedirs(TXT_DIR)
     for repo in REPOS:
-        scrape_repo(repo)
-        time.sleep(1)
+        csv_path = os.path.join(TXT_DIR, f"{repo}.csv")
+        if not os.path.exists(csv_path):
+            print(f"[INFO] Scraping repo: {repo}")
+            scrape_repo(repo)
+            time.sleep(1)
 
 def merge_csv():
     all_dfs = []
@@ -76,7 +79,7 @@ def main():
     if not os.path.exists(TXT_DIR):
         os.mkdir(TXT_DIR)
     
-    scrape_all()
+    incremental_scrape()
     merge_csv()
 
 if __name__ == '__main__':

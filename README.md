@@ -2,6 +2,8 @@
 
 [![pages-build-deployment](https://github.com/mojimoon/wenku8/actions/workflows/pages/pages-build-deployment/badge.svg)](https://github.com/mojimoon/wenku8/actions/workflows/pages/pages-build-deployment)
 
+**Happy New Year 2026! 🎉** 2025 年的 TXT 源数据现已更新！
+
 自动化从 [轻小说文库](https://www.wenku8.net) 获取 EPUB 格式电子书，并将结果整合为网页呈现：
 
 - [mojimoon.github.io/wenku8](https://mojimoon.github.io/wenku8/index.html)：EPUB 源 + TXT 源
@@ -39,7 +41,7 @@ playwright install
 
 运行 `txt.py`：
 
-- `scrape_all()` 获取最新的 TXT 源下载列表
+- `incremental_scrape()` 获取最新的 TXT 源下载列表
     - 输出：`txt/*.csv`
     - 由于 GitHub API 限制最多显示 1,000 条数据，请检查是否有遗漏。如有，可以手动下载后运行 `filelist_to_csv.py` 进行转换。
 - `merge_csv()` 合并、去重

@@ -1,5 +1,8 @@
 <html><head><meta name="color-scheme" content="light dark"></head><body><pre style="word-wrap: break-word; white-space: pre-wrap;">网址前缀：wwyt.lanzov.com/
 上传日期    网址后缀    密码  注释      名称
+2026-01-05  b04ejamej   anpb  更新台版  差点在迷宫深处被信任的伙伴杀掉，但靠着天赐技能「无限扭蛋」获得等级
+2026-01-05  b00g3wvkti  5nlw  更新台版  人脸不宜食用
+2026-01-05  b00g25imrc  h96w  更新台版  Infinite_Dendrogram_无尽连锁
 2026-01-02  b00g3wmgta  2t3b  更新网译  妖姬的镇魂宴
 2026-01-01  b04ev094d   67yd  更新台版  持续狩猎史莱姆三百年，不知不觉就练到LV_MAX
 2026-01-01  b00g2fclng  8xew  更新短篇  古立特宇宙
@@ -263,7 +266,6 @@
 2025-09-30  b04eoxsla   c3be            英雄王，为了穷尽武道而转生～而后成为世界最强见习骑士♀～
 2025-09-29  b04evwvfi   5m1i            每遭放逐就能获得技能的我，在100个世界大开第二轮无双
 2025-09-29  b04ev7cze   22g9            Silent_Witch_沉默魔女的秘密
-2025-09-29  b04ejamej   anpb            差点在迷宫深处被信任的伙伴杀掉，但靠着天赐技能「无限扭蛋」获得等级
 2025-09-28  b00g3on4li  50mg            愿意认输的话，就让你摸个够喔？杂鱼
 2025-09-27  b00g3okfte  6bc3            异世界因果的见闻录
 2025-09-27  b00g3okfni  6d2y            世界末日的世界录
@@ -450,7 +452,6 @@
 2025-06-21  b00g3etpla  ar0y            平凡职业造就世界最强
 2025-06-20  b00g36qojg  bcqn            寂静魔女_索姆斯没人要中队Reboot
 2025-06-20  b00g2keckb  776o            少女星间漂流记
-2025-06-20  b00g25imrc  h96w            Infinite_Dendrogram_无尽连锁
 2025-06-18  b04enepvc   gwav            孤单一人的异世界攻略
 2025-06-16  b00g3efhjg  6mw6            十诫
 2025-06-16  b00g3efgja  eryo            玻璃塔杀人事件

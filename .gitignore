@@ -4,3 +4,4 @@ txt/*.csv
 last_success_date.txt
 auto_run.log
 COOKIE
+.env

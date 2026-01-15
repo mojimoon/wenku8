@@ -15,7 +15,7 @@ import sys
 
 BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
 params = { 'keyword': '8691', 'charset': 'utf-8', 'page': 1 }
-# 'requests' | 'playwright'
+# 'requests' | 'playwright' | 'steel'
 SCRAPER = 'playwright'
 user_agents = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'
@@ -85,7 +85,7 @@ load_cookie_from_file(session, COOKIE_FILE)
 browser = None
 playwright_ctx_cookie_dict = None  # 缓存解析后的 cookie，给 playwright 用
 
-def get_browser():
+def init_playwright():
     from playwright.sync_api import sync_playwright
     global browser, playwright_ctx_cookie_dict
     if browser is None:
@@ -106,7 +106,7 @@ def get_browser():
 def scrape_page_playwright(url):
     global browser, playwright_ctx_cookie_dict
     if browser is None:
-        browser = get_browser()
+        browser = init_playwright()
     # 每次新建 context，并注入 cookie
     with browser.new_context() as context:
         if playwright_ctx_cookie_dict:
@@ -128,6 +128,15 @@ def scrape_page_playwright(url):
         html_content = page.content()
         page.close()
     return html_content
+
+# def init_steel():
+#     from steel import Steel
+#     global browser
+#     from dotenv import dotenv_values
+#     steel_api_key = dotenv_values().get('STEEL_API_KEY', '')
+#     _ = Steel(steel_api_key)
+#     browser = _.sessions.create(api_timeout=30000, use_proxy=True)
+#     return browser
 
 def scrape_page_requests(url):
     resp = session.get(url, timeout=10, allow_redirects=True)

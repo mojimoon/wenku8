@@ -412,8 +412,6 @@ def merge():
                 if len(parts) > 4:
                     if parts[3][:2] == '更新' or parts[3][:2] == '补全':
                         df_post.loc[mask, 'dl_remark'] = parts[3][2:]
-                    else:
-                        df_post.loc[mask, 'dl_remark'] = '修复'
             #     if mask.sum() > 1:
             #         print(f'[WARN] {mask.sum()} entries matched for {parts[3]}')
             # else:

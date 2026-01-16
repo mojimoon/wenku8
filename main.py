@@ -191,9 +191,6 @@ def build_url_with_params(base_url: str, params: dict):
 # ========== Scraping ==========
 last_page = 1
 def get_latest_url(post_link: str):
-    # resp = session.get(post_link, timeout=10)
-    # resp.raise_for_status()
-    # resp.encoding = 'utf-8'
     txt = scrape_page(post_link)
 
     # <a href="https://paste.gentoo.zip" target="_blank">https://paste.gentoo.zip</a>/EsX5Kx8V
@@ -210,9 +207,6 @@ def get_latest_url(post_link: str):
     return link
 
 def get_latest(url: str):
-    # resp = session.get(url, timeout=10)
-    # resp.raise_for_status()
-    # resp.encoding = 'utf-8'
 
     txt = scrape_page(url)
     lines = txt.split('\n')
@@ -327,7 +321,7 @@ def scrape():
         time.sleep(random.uniform(1, 3))
     
     if SCRAPER == 'steel':
-        exit_steel() # 关闭 Steel 浏览器连接
+        exit_steel() # close Steel session
 
     # 新内容在前，拼接后写入
     # with open(POST_LIST_FILE, 'w', encoding='utf-8', newline='') as f:
@@ -379,7 +373,7 @@ def replace_chinese_numerals(s: str) -> str:
         s = s.replace(' 卷', '')
     return s
 
-UNMATCH = ['时间', '少女', '再见宣言', '强袭魔女', '秋之回忆', '秋之回忆2', '魔王', '青梅竹马', '弹珠汽水']
+IGNORED_TITLES = ['时间', '少女', '再见宣言', '强袭魔女', '秋之回忆', '秋之回忆2', '魔王', '青梅竹马', '弹珠汽水']
 
 def merge():
     df_post = pd.read_csv(POST_LIST_FILE, encoding='utf-8')
@@ -395,6 +389,7 @@ def merge():
     df_post['dl_label'] = ""
     df_post['dl_pwd'] = ""
     df_post['dl_update'] = ""
+    df_post['dl_remark'] = ""
     df_post['txt_matched'] = False
 
     # merge dl to post
@@ -414,6 +409,9 @@ def merge():
                 df_post.loc[mask, 'dl_update'] = parts[0]
                 df_post.loc[mask, 'dl_label'] = parts[1]
                 df_post.loc[mask, 'dl_pwd'] = parts[2]
+                if len(parts) > 4:
+                    if parts[3][:2] == '更新':
+                        df_post.loc[mask, 'dl_remark'] = parts[3][2:]
             #     if mask.sum() > 1:
             #         print(f'[WARN] {mask.sum()} entries matched for {parts[3]}')
             # else:
@@ -426,18 +424,16 @@ def merge():
     df_txt['dl_label'] = '' # 6
     df_txt['dl_pwd'] = '' # 7
     df_txt['dl_update'] = None # 8
-    df_txt['novel_title'] = '' # 9
-    df_txt['novel_link'] = '' # 10
+    df_txt['dl_remark'] = '' # 9
+    df_txt['novel_title'] = '' # 10
+    df_txt['novel_link'] = '' # 11
     for i in range(len(df_txt)):
         _title = df_txt.iloc[i, 0]
-        if _title in UNMATCH:
+        if _title in IGNORED_TITLES:
             continue
         mask = df_post['post_pure'].str.match(df_txt.iloc[i, 4]) & (df_post['txt_matched'] == False)
         match = None
         if mask.any():
-            # if _title.startswith('魔女之旅'):
-            #     match = mask[mask].index[1]
-            # else:
             match = mask[mask].index[0]
             # if mask.sum() > 1:
             #     print(f'[WARN] {mask.sum()} entries matched for {_title}')
@@ -458,15 +454,16 @@ def merge():
             df_txt.iloc[i, 6] = df_post.iloc[match]['dl_label']
             df_txt.iloc[i, 7] = df_post.iloc[match]['dl_pwd']
             df_txt.iloc[i, 8] = df_post.iloc[match]['dl_update']
-            df_txt.iloc[i, 9] = df_post.iloc[match]['novel_title']
-            df_txt.iloc[i, 10] = df_post.iloc[match]['novel_link']
+            df_txt.iloc[i, 9] = df_post.iloc[match]['dl_remark']
+            df_txt.iloc[i, 10] = df_post.iloc[match]['novel_title']
+            df_txt.iloc[i, 11] = df_post.iloc[match]['novel_link']
             df_post.iloc[match, -1] = True
     
     _mask = df_post['txt_matched'] == False
     for y in df_post[_mask].itertuples():
         if y.dl_label == "":
             continue
-        df_txt.loc[len(df_txt)] = ["", "", None, "", "", y.volume, y.dl_label, y.dl_pwd, y.dl_update, y.novel_title, y.novel_link]
+        df_txt.loc[len(df_txt)] = ["", "", None, "", "", y.volume, y.dl_label, y.dl_pwd, y.dl_update, y.dl_remark, y.novel_title, y.novel_link]
     
     df_txt['title'] = df_txt.apply(lambda x: x['novel_title'] if x['novel_title'] else x['title'], axis=1)
     df_txt['update'] = df_txt.apply(lambda x: x['dl_update'] if x['dl_update'] else x['date'], axis=1)
@@ -481,14 +478,14 @@ starme = '<iframe style="margin-left: 2px; margin-bottom:-5px;" frameborder="0" 
 def create_table_merged(df):
     rows = []
     for _, row in df.iterrows():
-        _l, _m, _a, _txt, _dll, _u, _at, _v = row['novel_link'], row['main'], row['alt'], row['download_url'], row['dl_label'], row['update'], row['author'], row['volume']
+        _l, _m, _a, _txt, _dll, _u, _at, _v, _r = row['novel_link'], row['main'], row['alt'], row['download_url'], row['dl_label'], row['update'], row['author'], row['volume'], row['dl_remark']
         novel_link = None if pd.isna(_l) else _l
         title_html = f'<a href="{novel_link}" target="_blank">{_m}</a>' if novel_link else _m
         alt_html = '' if pd.isna(_a) else f"<span class='at'>{_a}</span>"
         txt_dl = '' if pd.isna(_txt) else f"<a href='{_txt}' target='_blank'>下载</a> <a href='https://ghfast.top/{_txt}' target='_blank'>镜像</a>"
         volume = '' if pd.isna(_v) else _v
-        # volume = volume[:3].strip() if len(volume) > 3 else volume
-        lz_dl = '' if pd.isna(_dll) else f"<a href='https://{_prefix}/{_dll}' target='_blank'>({volume})</a>"
+        remark = '' if pd.isna(_r) else f" <span class='at'>{_r}</span>"
+        lz_dl = '' if pd.isna(_dll) else f"<a href='https://{_prefix}/{_dll}' target='_blank'>{volume}</a>{remark}"
         date = '' if pd.isna(_u) else _u
         author = '' if pd.isna(_at) else _at
         lz_pwd = '' if pd.isna(_dll) else row['dl_pwd']
@@ -532,11 +529,13 @@ def create_html_merged():
 def create_table_epub(df):
     rows = []
     for _, row in df.iterrows():
-        _l, _m, _a, _dll, _at = row['novel_link'], row['main'], row['alt'], row['dl_label'], row['author']
+        _l, _m, _a, _dll, _at, _v, _r = row['novel_link'], row['main'], row['alt'], row['dl_label'], row['author'], row['volume'], row['dl_remark']
         novel_link = None if pd.isna(_l) else _l
         title_html = f'<a href="{novel_link}" target="_blank">{_m}</a>' if novel_link else _m
         alt_html = '' if pd.isna(_a) else f"<span class='at'>{_a}</span>"
-        lz_dl = f"<a href='https://{_prefix}/{_dll}' target='_blank'>({row['volume']})</a>"
+        volume = '' if pd.isna(_v) else _v
+        remark = '' if pd.isna(_r) else f" <span class='at'>{_r}</span>"
+        lz_dl = '' if pd.isna(_dll) else f"<a href='https://{_prefix}/{_dll}' target='_blank'>{volume}</a>{remark}"
         author = '' if pd.isna(_at) else _at
         rows.append(
             f"<tr><td>{title_html}{alt_html}</td>"

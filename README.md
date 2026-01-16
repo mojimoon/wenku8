@@ -1,8 +1,10 @@
 # 轻小说文库 EPUB 下载
 
-[![pages-build-deployment](https://github.com/mojimoon/wenku8/actions/workflows/pages/pages-build-deployment/badge.svg)](https://github.com/mojimoon/wenku8/actions/workflows/pages/pages-build-deployment)
+An automated crawler and static site generator for light novel ebooks from [轻小说文库](https://www.wenku8.net), featuring multiple download sources, daily updates, and GitHub Actions deployment with [Steel](https://steel.dev).
 
-**Happy New Year 2026! 🎉** 2025 年的 TXT 源数据现已更新！
+---
+
+[![Daily and On-Commit Deploy](https://github.com/mojimoon/wenku8/actions/workflows/deploy.yml/badge.svg)](https://github.com/mojimoon/wenku8/actions/workflows/deploy.yml)
 
 自动化从 [轻小说文库](https://www.wenku8.net) 获取 EPUB 格式电子书，并将结果整合为网页呈现：
 
@@ -14,11 +16,11 @@
 
 ## Star History
 
-**如果您觉得这个项目有用，点个 Star 支持一下吧！**
+**如果您觉得这个项目有用，点个 Star 支持一下吧！Thanks! 😊**
 
 [![Star History Chart](https://api.star-history.com/svg?repos=mojimoon/wenku8&type=Date)](https://www.star-history.com/#mojimoon/wenku8&Date)
 
-## 使用方法
+## Usage
 
 克隆仓库并安装依赖：
 
@@ -28,16 +30,36 @@ cd wenku8
 pip install -r requirements.txt
 ```
 
-代码提供了两种爬虫方式：`requests` 和 `playwright`。正常情况下使用 `requests` 即可，若遇到无法绕过 Cloudflare 验证的情况，可切换到 `playwright`。
+有 3 种爬虫方式可选：
 
-若需使用 `playwright`，需额外安装：
+- `requests`：在使用境内 IP 时推荐使用
+- `playwright`：在使用境外 IP 时必须使用，能绕过 Cloudflare 验证
+- `steel`：在使用风控 IP（如 GitHub Actions 的服务器）时必须使用 [Steel](https://steel.dev) 平台提供的无头浏览器服务，需注册账号并获取 API Key
+
+如需使用 `playwright` 或 `steel`，还需安装 Playwright 及其浏览器：
 
 ```bash
 pip install pytest-playwright
 playwright install
 ```
 
+如需使用 `steel`，还需在项目根目录创建 `.env` 文件，内容如下：
+
+```
+STEEL_API_KEY=...
+```
+
+并填入从 [Steel 控制台](https://app.steel.dev/quickstart) 获取的 API Key。
+
 ---
+
+此外，在 wenku8 某次更新后，还需要登录网站来访问论坛内容。为此，你需要在浏览器中登录后，将 `COOKIE` 文件保存到项目根目录。`COOKIE` 的开头如下所示：
+
+```
+jieqiUserCharset=utf-8; jieqiVisitId=...; ...
+```
+
+## Workflow
 
 运行 `txt.py`：
 
@@ -58,12 +80,12 @@ playwright install
 
 此外，GitHub Actions 会每天自动运行 `main.py`，将 `public/` 目录提交到 `gh-pages` 分支并部署到 GitHub Pages。
 
-## 注意事项
+## Remarks
 
 为加快访问速度，HTML、CSS、JS 文件均已压缩（源代码在 `source` 目录下），且使用 jsDeliver CDN 加速。  
 
 > 可参考本人博客中 [加快 GitHub Pages 国内访问速度](https://mojimoon.github.io/blog/2025/speedup-github-page/) 一文。
 
-## 许可证
+## License
 
 [MIT License](LICENSE)

@@ -130,6 +130,11 @@ a:hover {
     margin-left: 10px;
 }
 
+.bt {
+    color: #6c757d;
+    font-size: 0.85rem;
+}
+
 .dl {
     min-width: 4.5rem;
 }
@@ -154,7 +159,7 @@ a:hover {
     th, td {
         padding: 2px 4px;
     }
-    .at {
+    .at, .bt {
         display: block;
         margin-top: 4px;
         margin-left: 0;

@@ -410,8 +410,10 @@ def merge():
                 df_post.loc[mask, 'dl_label'] = parts[1]
                 df_post.loc[mask, 'dl_pwd'] = parts[2]
                 if len(parts) > 4:
-                    if parts[3][:2] == '更新':
+                    if parts[3][:2] == '更新' or parts[3][:2] == '补全':
                         df_post.loc[mask, 'dl_remark'] = parts[3][2:]
+                    else:
+                        df_post.loc[mask, 'dl_remark'] = '修复'
             #     if mask.sum() > 1:
             #         print(f'[WARN] {mask.sum()} entries matched for {parts[3]}')
             # else:
@@ -484,7 +486,7 @@ def create_table_merged(df):
         alt_html = '' if pd.isna(_a) else f"<span class='at'>{_a}</span>"
         txt_dl = '' if pd.isna(_txt) else f"<a href='{_txt}' target='_blank'>下载</a> <a href='https://ghfast.top/{_txt}' target='_blank'>镜像</a>"
         volume = '' if pd.isna(_v) else _v
-        remark = '' if pd.isna(_r) else f" <span class='at'>{_r}</span>"
+        remark = '' if pd.isna(_r) else f" <span class='bt'>{_r}</span>"
         lz_dl = '' if pd.isna(_dll) else f"<a href='https://{_prefix}/{_dll}' target='_blank'>{volume}</a>{remark}"
         date = '' if pd.isna(_u) else _u
         author = '' if pd.isna(_at) else _at
@@ -506,7 +508,7 @@ def create_html_merged():
         '<meta name="keywords"content="轻小说,sf轻小说,dmzj轻小说,日本轻小说,动漫小说,轻小说电子书,轻小说EPUB下载">'
         '<meta name="description"content="轻小说文库 EPUB 下载，支持搜索关键字、跳转至源站和蓝奏云下载，已进行移动端适配。">'
         '<meta name="author"content="mojimoon"><title>轻小说文库 EPUB 下载+</title>'
-        '<link rel="stylesheet"href="https://gcore.jsdelivr.net/gh/mojimoon/wenku8@gh-pages/style.css"></head><body>'
+        '<link rel="stylesheet"href="style.css"></head><body>'
         '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载+</h1>'
         f'<h4>({today}) <a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {starme}</h4>'
         '<span>所有内容均收集于网络，仅供学习交流使用。'
@@ -520,7 +522,7 @@ def create_html_merged():
         '<button class="btn"id="randomButton">随机</button></div>'
         '<table><thead><tr><th>标题</th><th>作者</th><th>最新</th><th>密码</th><th>年更</th><th>更新</th></tr>'
         '</thead><tbody id="novelTableBody">'
-        f'{table}</tbody></table><script src="https://gcore.jsdelivr.net/gh/mojimoon/wenku8@gh-pages/script_merged.js"></script>'
+        f'{table}</tbody></table><script src="script_merged.js"></script>'
         '</body></html>'
     )
     with open(MERGED_HTML, 'w', encoding='utf-8') as f:
@@ -534,7 +536,7 @@ def create_table_epub(df):
         title_html = f'<a href="{novel_link}" target="_blank">{_m}</a>' if novel_link else _m
         alt_html = '' if pd.isna(_a) else f"<span class='at'>{_a}</span>"
         volume = '' if pd.isna(_v) else _v
-        remark = '' if pd.isna(_r) else f" <span class='at'>{_r}</span>"
+        remark = '' if pd.isna(_r) else f" <span class='bt'>{_r}</span>"
         lz_dl = '' if pd.isna(_dll) else f"<a href='https://{_prefix}/{_dll}' target='_blank'>{volume}</a>{remark}"
         author = '' if pd.isna(_at) else _at
         rows.append(
@@ -555,7 +557,7 @@ def create_html_epub():
         '<meta name="keywords"content="轻小说,sf轻小说,dmzj轻小说,日本轻小说,动漫小说,轻小说电子书,轻小说EPUB下载">'
         '<meta name="description"content="轻小说文库 EPUB 下载，支持搜索关键字、跳转至源站和蓝奏云下载，已进行移动端适配。">'
         '<meta name="author"content="mojimoon"><title>轻小说文库 EPUB 下载</title>'
-        '<link rel="stylesheet"href="https://gcore.jsdelivr.net/gh/mojimoon/wenku8@gh-pages/style.css"></head><body>'
+        '<link rel="stylesheet"href="style.css"></head><body>'
         '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载</h1>'
         f'<h4>({today}) <a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {starme}</h4>'
         '<span>所有内容均收集于网络，仅供学习交流使用。'
@@ -568,7 +570,7 @@ def create_html_epub():
         '<button class="btn"id="randomButton">随机</button></div>'
         '<table><thead><tr><th>标题</th><th>作者</th><th>蓝奏</th><th>密码</th><th>更新</th></tr>'
         '</thead><tbody id="novelTableBody">'
-        f'{table}</tbody></table><script src="https://gcore.jsdelivr.net/gh/mojimoon/wenku8@gh-pages/script_merged.js"></script>'
+        f'{table}</tbody></table><script src="script_merged.js"></script>'
         '</body></html>'
     )
     with open(EPUB_HTML, 'w', encoding='utf-8') as f:

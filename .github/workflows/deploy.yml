@@ -32,12 +32,10 @@ jobs:
         pip install playwright
         python -m playwright install --with-deps
 
-    - name: Set up cookies
+    - name: Setup secrets
       run: |
         echo "${{ secrets.WENKU_COOKIES }}" > COOKIE
-
-    - name: Run main.py
-      run: python main.py
+        echo "STEEL_API_KEY=${{ secrets.STEEL_API_KEY }}" > .env
 
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v4

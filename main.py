@@ -399,7 +399,12 @@ def merge():
 
     # merge dl to post
     with open(DL_FILE, 'r', encoding='utf-8') as f:
-        lines = f.readlines()[2:]
+        global _prefix
+        _ = f.readlines()
+        # <html><head><meta name="color-scheme" content="light dark"></head><body><pre style="word-wrap: break-word; white-space: pre-wrap;"> 网址前缀：wenku8.lanzov.com/
+        _prefix = _[0].split('：')[-1].strip()
+        # print(f"[DEBUG] DL prefix: {_prefix}")
+        lines = _[2:]
         for line in lines:
             parts = line.strip().split()
             if len(parts) < 4:
@@ -483,7 +488,7 @@ def create_table_merged(df):
         txt_dl = '' if pd.isna(_txt) else f"<a href='{_txt}' target='_blank'>下载</a> <a href='https://ghfast.top/{_txt}' target='_blank'>镜像</a>"
         volume = '' if pd.isna(_v) else _v
         # volume = volume[:3].strip() if len(volume) > 3 else volume
-        lz_dl = '' if pd.isna(_dll) else f"<a href='https://wwyt.lanzov.com/{_dll}' target='_blank'>({volume})</a>"
+        lz_dl = '' if pd.isna(_dll) else f"<a href='https://{_prefix}/{_dll}' target='_blank'>({volume})</a>"
         date = '' if pd.isna(_u) else _u
         author = '' if pd.isna(_at) else _at
         lz_pwd = '' if pd.isna(_dll) else row['dl_pwd']
@@ -531,7 +536,7 @@ def create_table_epub(df):
         novel_link = None if pd.isna(_l) else _l
         title_html = f'<a href="{novel_link}" target="_blank">{_m}</a>' if novel_link else _m
         alt_html = '' if pd.isna(_a) else f"<span class='at'>{_a}</span>"
-        lz_dl = f"<a href='https://wwyt.lanzov.com/{_dll}' target='_blank'>({row['volume']})</a>"
+        lz_dl = f"<a href='https://{_prefix}/{_dll}' target='_blank'>({row['volume']})</a>"
         author = '' if pd.isna(_at) else _at
         rows.append(
             f"<tr><td>{title_html}{alt_html}</td>"

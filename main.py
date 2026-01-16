@@ -482,7 +482,7 @@ def create_table_merged(df):
         title_html = f'<a href="{novel_link}" target="_blank">{_m}</a>' if novel_link else _m
         alt_html = '' if pd.isna(_a) else f"<span class='at'>{_a}</span>"
         txt_dl = '' if pd.isna(_txt) else f"<a href='{_txt}' target='_blank'>下载</a> <a href='https://ghfast.top/{_txt}' target='_blank'>镜像</a>"
-        volume = '' if pd.isna(_v) else _v
+        volume = '' if pd.isna(_v) else f'({_v})'
         remark = '' if pd.isna(_r) else f" <span class='bt'>{_r}</span>"
         lz_dl = '' if pd.isna(_dll) else f"<a href='https://{_prefix}/{_dll}' target='_blank'>{volume}</a>{remark}"
         date = '' if pd.isna(_u) else _u
@@ -532,7 +532,7 @@ def create_table_epub(df):
         novel_link = None if pd.isna(_l) else _l
         title_html = f'<a href="{novel_link}" target="_blank">{_m}</a>' if novel_link else _m
         alt_html = '' if pd.isna(_a) else f"<span class='at'>{_a}</span>"
-        volume = '' if pd.isna(_v) else _v
+        volume = '' if pd.isna(_v) else f'({_v})'
         remark = '' if pd.isna(_r) else f" <span class='bt'>{_r}</span>"
         lz_dl = '' if pd.isna(_dll) else f"<a href='https://{_prefix}/{_dll}' target='_blank'>{volume}</a>{remark}"
         author = '' if pd.isna(_at) else _at

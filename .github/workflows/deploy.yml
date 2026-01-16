@@ -32,6 +32,10 @@ jobs:
         pip install playwright
         python -m playwright install --with-deps
 
+    - name: Create COOKIES.txt from Secret
+      run: |
+        echo "${{ secrets.WENKU_COOKIES }}" > COOKIES.txt
+
     - name: Run main.py
       run: python main.py
 

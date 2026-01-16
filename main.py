@@ -16,7 +16,7 @@ import sys
 BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
 params = { 'keyword': '8691', 'charset': 'utf-8', 'page': 1 }
 # 'requests' | 'playwright' | 'steel'
-SCRAPER = 'playwright'
+SCRAPER = 'steel'
 user_agents = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'
@@ -30,9 +30,6 @@ HEADERS = {
     # 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
     'User-Agent': random.choice(user_agents),
     'Referer': 'https://www.wenku8.net/',
-    # 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-    # 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-    # 'Accept-Encoding': 'gzip, deflate, br'
 }
 DOMAIN = 'https://www.wenku8.net'
 OUT_DIR = 'out'
@@ -69,7 +66,7 @@ def parse_cookie_line(line: str):
         cookie_dict[k.strip()] = v.strip()
     return cookie_dict
 
-def load_cookie_from_file(sess, filepath):
+def load_cookie_from_file(sess: requests.Session, filepath: str):
     if not os.path.exists(filepath):
         return
     with open(filepath, 'r', encoding='utf-8') as f:
@@ -83,7 +80,8 @@ def load_cookie_from_file(sess, filepath):
 load_cookie_from_file(session, COOKIE_FILE)
 
 browser = None
-playwright_ctx_cookie_dict = None  # 缓存解析后的 cookie，给 playwright 用
+playwright_ctx_cookie_dict = None
+steel_dict = None
 
 def init_playwright():
     from playwright.sync_api import sync_playwright
@@ -103,10 +101,45 @@ def init_playwright():
             playwright_ctx_cookie_dict = {}
     return browser
 
-def scrape_page_playwright(url):
+def init_steel():
+    from steel import Steel
+    from dotenv import dotenv_values
+    from playwright.sync_api import sync_playwright
+    global browser, playwright_ctx_cookie_dict, steel_dict
+    steel_api_key = dotenv_values().get('STEEL_API_KEY', '')
+    client = Steel(steel_api_key=steel_api_key)
+    steel_session = client.sessions.create(api_timeout=20000)
+    print(f'[INFO] Running Steel session: {steel_session.id}')
+    steel_dict = {
+        'api_key': steel_api_key,
+        'session_id': steel_session.id,
+        'client': client
+    }
+
+    if browser is None:
+        playwright = sync_playwright().start()
+        browser = playwright.chromium.connect_over_cdp(
+            f'wss://connect.steel.dev?apiKey={steel_api_key}&sessionId={steel_session.id}'
+        )
+
+        if os.path.exists(COOKIE_FILE):
+            with open(COOKIE_FILE, 'r', encoding='utf-8') as f:
+                line = f.readline()
+            playwright_ctx_cookie_dict = parse_cookie_line(line)
+        else:
+            playwright_ctx_cookie_dict = {}
+    return browser
+
+def exit_steel():
+    browser.close()
+    client = steel_dict['client']
+    session_id = steel_dict['session_id']
+    client.sessions.release(session_id)
+
+def scrape_page_playwright(url: str):
     global browser, playwright_ctx_cookie_dict
     if browser is None:
-        browser = init_playwright()
+        browser = (init_steel() if SCRAPER == 'steel' else init_playwright())
     # 每次新建 context，并注入 cookie
     with browser.new_context() as context:
         if playwright_ctx_cookie_dict:
@@ -129,16 +162,7 @@ def scrape_page_playwright(url):
         page.close()
     return html_content
 
-# def init_steel():
-#     from steel import Steel
-#     global browser
-#     from dotenv import dotenv_values
-#     steel_api_key = dotenv_values().get('STEEL_API_KEY', '')
-#     _ = Steel(steel_api_key)
-#     browser = _.sessions.create(api_timeout=30000, use_proxy=True)
-#     return browser
-
-def scrape_page_requests(url):
+def scrape_page_requests(url: str):
     resp = session.get(url, timeout=10, allow_redirects=True)
     final_url = resp.url
     if '/login.php' in final_url:
@@ -149,15 +173,15 @@ def scrape_page_requests(url):
     #     f.write(resp.text)
     return resp.text
 
-def scrape_page(url):
-    if SCRAPER == 'playwright':
+def scrape_page(url: str):
+    if SCRAPER == 'playwright' or SCRAPER == 'steel':
         return scrape_page_playwright(url)
     elif SCRAPER == 'requests':
         return scrape_page_requests(url)
     else:
         raise ValueError(f"Unknown scraper: {SCRAPER}")
 
-def build_url_with_params(base_url, params):
+def build_url_with_params(base_url: str, params: dict):
     if not params:
         return base_url
     query_string = '&'.join(f"{key}={value}" for key, value in params.items())
@@ -166,10 +190,7 @@ def build_url_with_params(base_url, params):
 
 # ========== Scraping ==========
 last_page = 1
-def get_latest_url(post_link):
-    # resp = session.get(post_link, timeout=10)
-    # resp.raise_for_status()
-    # resp.encoding = 'utf-8'
+def get_latest_url(post_link: str):
     txt = scrape_page(post_link)
 
     # <a href="https://paste.gentoo.zip" target="_blank">https://paste.gentoo.zip</a>/EsX5Kx8V
@@ -185,11 +206,7 @@ def get_latest_url(post_link):
 
     return link
 
-def get_latest(url):
-    # resp = session.get(url, timeout=10)
-    # resp.raise_for_status()
-    # resp.encoding = 'utf-8'
-
+def get_latest(url: str):
     txt = scrape_page(url)
     lines = txt.split('\n')
     flg = [False] * 4
@@ -219,7 +236,7 @@ def get_latest(url):
     with open(DL_FILE, 'w', encoding='utf-8') as f:
         f.write(txt)
 
-def parse_page(page_num, latest_post_link=None):
+def parse_page(page_num: int, latest_post_link: str = None):
     params['page'] = page_num
     url = build_url_with_params(BASE_URL, params)
     txt = scrape_page(url)
@@ -301,6 +318,9 @@ def scrape():
             break
         page += 1
         time.sleep(random.uniform(1, 3))
+    
+    if SCRAPER == 'steel':
+        exit_steel() # close Steel session
 
     # 新内容在前，拼接后写入
     # with open(POST_LIST_FILE, 'w', encoding='utf-8', newline='') as f:
@@ -321,13 +341,13 @@ def scrape():
             f.writelines(lines)
 
 # ========== Data Processing ==========
-def purify(text): # 只保留中文、英文和数字
+def purify(text: str) -> str: # 只保留中文、英文和数字
     text = re.sub(r'[^\u4e00-\u9fa5a-zA-Z0-9]', '', text)
     return text
 
 CN_NUM = { '零': 0, '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10 }
 
-def chinese_to_arabic(cn):
+def chinese_to_arabic(cn: str) -> int:
     if cn == '十':
         return 10
     elif cn.startswith('十'):
@@ -340,7 +360,7 @@ def chinese_to_arabic(cn):
     else:
         return CN_NUM.get(cn, 0)
 
-def replace_chinese_numerals(s):
+def replace_chinese_numerals(s: str) -> str:
     match = re.search(r'第([一二三四五六七八九十零]{1,3})卷', s)
     if match:
         cn_num = match.group(1)
@@ -352,7 +372,7 @@ def replace_chinese_numerals(s):
         s = s.replace(' 卷', '')
     return s
 
-UNMATCH = ['时间', '少女', '再见宣言', '强袭魔女', '秋之回忆', '秋之回忆2', '魔王', '青梅竹马', '弹珠汽水']
+IGNORED_TITLES = ['时间', '少女', '再见宣言', '强袭魔女', '秋之回忆', '秋之回忆2', '魔王', '青梅竹马', '弹珠汽水']
 
 def merge():
     df_post = pd.read_csv(POST_LIST_FILE, encoding='utf-8')
@@ -368,11 +388,17 @@ def merge():
     df_post['dl_label'] = ""
     df_post['dl_pwd'] = ""
     df_post['dl_update'] = ""
+    df_post['dl_remark'] = ""
     df_post['txt_matched'] = False
 
     # merge dl to post
     with open(DL_FILE, 'r', encoding='utf-8') as f:
-        lines = f.readlines()[2:]
+        global _prefix
+        _ = f.readlines()
+        # <html><head><meta name="color-scheme" content="light dark"></head><body><pre style="word-wrap: break-word; white-space: pre-wrap;"> 网址前缀：wenku8.lanzov.com/
+        _prefix = _[0].split('：')[-1].strip()
+        # print(f"[DEBUG] DL prefix: {_prefix}")
+        lines = _[2:]
         for line in lines:
             parts = line.strip().split()
             if len(parts) < 4:
@@ -382,6 +408,9 @@ def merge():
                 df_post.loc[mask, 'dl_update'] = parts[0]
                 df_post.loc[mask, 'dl_label'] = parts[1]
                 df_post.loc[mask, 'dl_pwd'] = parts[2]
+                if len(parts) > 4:
+                    if parts[3][:2] == '更新' or parts[3][:2] == '补全':
+                        df_post.loc[mask, 'dl_remark'] = parts[3][2:]
             #     if mask.sum() > 1:
             #         print(f'[WARN] {mask.sum()} entries matched for {parts[3]}')
             # else:
@@ -394,18 +423,16 @@ def merge():
     df_txt['dl_label'] = '' # 6
     df_txt['dl_pwd'] = '' # 7
     df_txt['dl_update'] = None # 8
-    df_txt['novel_title'] = '' # 9
-    df_txt['novel_link'] = '' # 10
+    df_txt['dl_remark'] = '' # 9
+    df_txt['novel_title'] = '' # 10
+    df_txt['novel_link'] = '' # 11
     for i in range(len(df_txt)):
         _title = df_txt.iloc[i, 0]
-        if _title in UNMATCH:
+        if _title in IGNORED_TITLES:
             continue
         mask = df_post['post_pure'].str.match(df_txt.iloc[i, 4]) & (df_post['txt_matched'] == False)
         match = None
         if mask.any():
-            # if _title.startswith('魔女之旅'):
-            #     match = mask[mask].index[1]
-            # else:
             match = mask[mask].index[0]
             # if mask.sum() > 1:
             #     print(f'[WARN] {mask.sum()} entries matched for {_title}')
@@ -426,15 +453,16 @@ def merge():
             df_txt.iloc[i, 6] = df_post.iloc[match]['dl_label']
             df_txt.iloc[i, 7] = df_post.iloc[match]['dl_pwd']
             df_txt.iloc[i, 8] = df_post.iloc[match]['dl_update']
-            df_txt.iloc[i, 9] = df_post.iloc[match]['novel_title']
-            df_txt.iloc[i, 10] = df_post.iloc[match]['novel_link']
+            df_txt.iloc[i, 9] = df_post.iloc[match]['dl_remark']
+            df_txt.iloc[i, 10] = df_post.iloc[match]['novel_title']
+            df_txt.iloc[i, 11] = df_post.iloc[match]['novel_link']
             df_post.iloc[match, -1] = True
     
     _mask = df_post['txt_matched'] == False
     for y in df_post[_mask].itertuples():
         if y.dl_label == "":
             continue
-        df_txt.loc[len(df_txt)] = ["", "", None, "", "", y.volume, y.dl_label, y.dl_pwd, y.dl_update, y.novel_title, y.novel_link]
+        df_txt.loc[len(df_txt)] = ["", "", None, "", "", y.volume, y.dl_label, y.dl_pwd, y.dl_update, y.dl_remark, y.novel_title, y.novel_link]
     
     df_txt['title'] = df_txt.apply(lambda x: x['novel_title'] if x['novel_title'] else x['title'], axis=1)
     df_txt['update'] = df_txt.apply(lambda x: x['dl_update'] if x['dl_update'] else x['date'], axis=1)
@@ -449,14 +477,14 @@ starme = '<iframe style="margin-left: 2px; margin-bottom:-5px;" frameborder="0" 
 def create_table_merged(df):
     rows = []
     for _, row in df.iterrows():
-        _l, _m, _a, _txt, _dll, _u, _at, _v = row['novel_link'], row['main'], row['alt'], row['download_url'], row['dl_label'], row['update'], row['author'], row['volume']
+        _l, _m, _a, _txt, _dll, _u, _at, _v, _r = row['novel_link'], row['main'], row['alt'], row['download_url'], row['dl_label'], row['update'], row['author'], row['volume'], row['dl_remark']
         novel_link = None if pd.isna(_l) else _l
         title_html = f'<a href="{novel_link}" target="_blank">{_m}</a>' if novel_link else _m
         alt_html = '' if pd.isna(_a) else f"<span class='at'>{_a}</span>"
         txt_dl = '' if pd.isna(_txt) else f"<a href='{_txt}' target='_blank'>下载</a> <a href='https://ghfast.top/{_txt}' target='_blank'>镜像</a>"
         volume = '' if pd.isna(_v) else _v
-        # volume = volume[:3].strip() if len(volume) > 3 else volume
-        lz_dl = '' if pd.isna(_dll) else f"<a href='https://wwyt.lanzov.com/{_dll}' target='_blank'>({volume})</a>"
+        remark = '' if pd.isna(_r) else f" <span class='bt'>{_r}</span>"
+        lz_dl = '' if pd.isna(_dll) else f"<a href='https://{_prefix}/{_dll}' target='_blank'>{volume}</a>{remark}"
         date = '' if pd.isna(_u) else _u
         author = '' if pd.isna(_at) else _at
         lz_pwd = '' if pd.isna(_dll) else row['dl_pwd']
@@ -477,7 +505,7 @@ def create_html_merged():
         '<meta name="keywords"content="轻小说,sf轻小说,dmzj轻小说,日本轻小说,动漫小说,轻小说电子书,轻小说EPUB下载">'
         '<meta name="description"content="轻小说文库 EPUB 下载，支持搜索关键字、跳转至源站和蓝奏云下载，已进行移动端适配。">'
         '<meta name="author"content="mojimoon"><title>轻小说文库 EPUB 下载+</title>'
-        '<link rel="stylesheet"href="https://gcore.jsdelivr.net/gh/mojimoon/wenku8@gh-pages/style.css"></head><body>'
+        '<link rel="stylesheet"href="style.css"></head><body>'
         '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载+</h1>'
         f'<h4>({today}) <a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {starme}</h4>'
         '<span>所有内容均收集于网络，仅供学习交流使用。'
@@ -491,7 +519,7 @@ def create_html_merged():
         '<button class="btn"id="randomButton">随机</button></div>'
         '<table><thead><tr><th>标题</th><th>作者</th><th>最新</th><th>密码</th><th>年更</th><th>更新</th></tr>'
         '</thead><tbody id="novelTableBody">'
-        f'{table}</tbody></table><script src="https://gcore.jsdelivr.net/gh/mojimoon/wenku8@gh-pages/script_merged.js"></script>'
+        f'{table}</tbody></table><script src="script_merged.js"></script>'
         '</body></html>'
     )
     with open(MERGED_HTML, 'w', encoding='utf-8') as f:
@@ -500,11 +528,13 @@ def create_html_merged():
 def create_table_epub(df):
     rows = []
     for _, row in df.iterrows():
-        _l, _m, _a, _dll, _at = row['novel_link'], row['main'], row['alt'], row['dl_label'], row['author']
+        _l, _m, _a, _dll, _at, _v, _r = row['novel_link'], row['main'], row['alt'], row['dl_label'], row['author'], row['volume'], row['dl_remark']
         novel_link = None if pd.isna(_l) else _l
         title_html = f'<a href="{novel_link}" target="_blank">{_m}</a>' if novel_link else _m
         alt_html = '' if pd.isna(_a) else f"<span class='at'>{_a}</span>"
-        lz_dl = f"<a href='https://wwyt.lanzov.com/{_dll}' target='_blank'>({row['volume']})</a>"
+        volume = '' if pd.isna(_v) else _v
+        remark = '' if pd.isna(_r) else f" <span class='bt'>{_r}</span>"
+        lz_dl = '' if pd.isna(_dll) else f"<a href='https://{_prefix}/{_dll}' target='_blank'>{volume}</a>{remark}"
         author = '' if pd.isna(_at) else _at
         rows.append(
             f"<tr><td>{title_html}{alt_html}</td>"
@@ -524,7 +554,7 @@ def create_html_epub():
         '<meta name="keywords"content="轻小说,sf轻小说,dmzj轻小说,日本轻小说,动漫小说,轻小说电子书,轻小说EPUB下载">'
         '<meta name="description"content="轻小说文库 EPUB 下载，支持搜索关键字、跳转至源站和蓝奏云下载，已进行移动端适配。">'
         '<meta name="author"content="mojimoon"><title>轻小说文库 EPUB 下载</title>'
-        '<link rel="stylesheet"href="https://gcore.jsdelivr.net/gh/mojimoon/wenku8@gh-pages/style.css"></head><body>'
+        '<link rel="stylesheet"href="style.css"></head><body>'
         '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载</h1>'
         f'<h4>({today}) <a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {starme}</h4>'
         '<span>所有内容均收集于网络，仅供学习交流使用。'
@@ -537,7 +567,7 @@ def create_html_epub():
         '<button class="btn"id="randomButton">随机</button></div>'
         '<table><thead><tr><th>标题</th><th>作者</th><th>蓝奏</th><th>密码</th><th>更新</th></tr>'
         '</thead><tbody id="novelTableBody">'
-        f'{table}</tbody></table><script src="https://gcore.jsdelivr.net/gh/mojimoon/wenku8@gh-pages/script_merged.js"></script>'
+        f'{table}</tbody></table><script src="script_merged.js"></script>'
         '</body></html>'
     )
     with open(EPUB_HTML, 'w', encoding='utf-8') as f:

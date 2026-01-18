@@ -1,8 +1,11 @@
-<html><head><meta name="color-scheme" content="light dark"></head><body><pre style="word-wrap: break-word; white-space: pre-wrap;">网址前缀：wenku8.lanzov.com/
+网址前缀：wenku8.lanzov.com/
 上传日期    网址后缀    密码  注释      名称
+2026-01-18  b04evzzgb   h3d5  更新台版  拥有超常技能的异世界流浪美食家
+2026-01-18  b04e73m3e   g2ie  更新短篇  王者的求婚
+2026-01-18  b00g3y10of  1vf0  更新网译  亚人末姬皇女如何篡夺王座：星辰圣战列传
+2026-01-18  b00g3y10ij  5rxr  更新台版  我受欢迎只是误会一场～被推的美少女们团团包围～
 2026-01-17  b04el6lif   1x4y  更新网译  罗梅莉亚战记
 2026-01-17  b00g3xxf4b  8v2b  更新网译  我的她是战争妖精
-2026-01-16  b04e73m3e   g2ie  更新短篇  王者的求婚
 2026-01-16  b00g3xustg  1wwg  更新网译  无伤姬事件
 2026-01-16  b00g3xrokf  bb2j  更新台版  在雪花漫舞的季节想念你
 2026-01-16  b00g3fx6hc  dm5m  更新台版  我的青梅竹马似乎是第一女主角
@@ -536,7 +539,6 @@
 2025-05-10  b00g3auv5c  3euw            小鸟游酱过于喜爱腰斩漫画
 2025-05-10  b00g3auouf  8gfp            一切从那时开始
 2025-05-10  b00g3auolg  70tf            第二代圣女无法战斗
-2025-05-09  b04evzzgb   h3d5            拥有超常技能的异世界流浪美食家
 2025-05-09  b00g3aqz6d  eg6l            想成为勇者的少女，与注定成为勇者的她
 2025-05-08  b00g3anx5c  2j8n            RIGHT×LIGHT
 2025-05-08  b00g3a6cuj  anjd            福尔摩斯凯旋归来
@@ -1379,4 +1381,4 @@
 2023-07-03  b04e73kdc   fqlf            萝球社！
 2023-07-01  b04e6v5bc   ezk5            赛文奥特曼X_ULTRASEVEN_X
 2023-06-28  b04e6koyd   af0v            吹响吧！上低音号：欢迎加入北宇治高中管乐社_短篇
-2023-06-28  b04e6hxqb   een4            这份恋情，与其未来。</pre></body></html>
+2023-06-28  b04e6hxqb   een4            这份恋情，与其未来。

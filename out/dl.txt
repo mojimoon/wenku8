@@ -1,5 +1,7 @@
-网址前缀：wenku8.lanzov.com/
+<html><head><meta name="color-scheme" content="light dark"></head><body><pre style="word-wrap: break-word; white-space: pre-wrap;">网址前缀：wenku8.lanzov.com/
 上传日期    网址后缀    密码  注释      名称
+2026-01-22  b00g2k8nyf  epom  更新网译  在男性禁入的游戏世界里，我唯一该做的事情
+2026-01-22  b00g2dxtgb  2cyp  更新短篇  轮回第7次的坏人大小姐，在原本的敌国自由自在地享受新娘生活
 2026-01-21  b00g3yc0mj  5c8f  更新网译  Day_Tripper
 2026-01-21  b00g2ddxuj  2vyn  更新台版  人渣
 2026-01-20  b04er1zkh   ftnn  更新短篇  不吉波普系列
@@ -121,7 +123,6 @@
 2025-11-30  b00g3th62f  d26h  更新台版  少女奇案
 2025-11-29  b00g3tdjgd  9d9z  更新台版  老师也有在写小说吧？
 2025-11-29  b00g3p9auf  eedf  更新短篇  只向我展示羞耻姿态的学园公主大人
-2025-11-29  b00g2dxtgb  2cyp  更新短篇  轮回第7次的坏人大小姐，在原本的敌国自由自在地享受新娘生活
 2025-11-29  b00g2c3vfg  ep01  更新台版  魔弹之王与冻涟的雪姬
 2025-11-28  b04f05zni   i3sp  更新台版  关于我转生变成史莱姆这档事
 2025-11-28  b04es3e6f   50d6  更新台版  SAO刀剑神域外传_Gun_Gale_Online
@@ -424,7 +425,6 @@
 2025-07-17  b04ewwmkf   8btp            百鬼园事件帖
 2025-07-17  b00g3gz6ha  gkf2            在这个星球与你一起活下去的数亿个理由
 2025-07-17  b00g3gz62f  61eq            侦探不在教室里
-2025-07-17  b00g2k8nyf  epom            在男性禁入的游戏世界里，我唯一该做的事情
 2025-07-16  b00g2y5t3g  ch12            京都红庄奇谭
 2025-07-15  b00g2zfk6b  47gx            在异世界买土地开辟农场！
 2025-07-14  b00g38m6tg  2ves            血翼王亡命谭
@@ -1385,4 +1385,4 @@
 2023-07-03  b04e73kdc   fqlf            萝球社！
 2023-07-01  b04e6v5bc   ezk5            赛文奥特曼X_ULTRASEVEN_X
 2023-06-28  b04e6koyd   af0v            吹响吧！上低音号：欢迎加入北宇治高中管乐社_短篇
-2023-06-28  b04e6hxqb   een4            这份恋情，与其未来。
+2023-06-28  b04e6hxqb   een4            这份恋情，与其未来。</pre></body></html>

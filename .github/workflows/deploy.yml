@@ -5,8 +5,8 @@ on:
     branches:
       - main
   schedule:
-    # 16:00 UTC = 00:00 CST
-    - cron: '0 16 * * *'
+    # 04:00 UTC = 12:00 CST
+    - cron: '0 4 * * *'
 
 jobs:
   deploy:

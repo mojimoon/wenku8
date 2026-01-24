@@ -13,7 +13,7 @@ if os.path.exists(record_file):
         exit(0)
 
 try:
-    subprocess.check_call(["python", "main.py"])
+    subprocess.check_call(["python", "main.py", "playwright"])
 except subprocess.CalledProcessError:
     exit(1)
 

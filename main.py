@@ -16,7 +16,7 @@ import sys
 BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
 params = { 'keyword': '8691', 'charset': 'utf-8', 'page': 1 }
 # 'requests' | 'playwright' | 'steel'
-SCRAPER = 'steel'
+_scraper = 'steel'
 user_agents = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'
@@ -140,7 +140,7 @@ def exit_steel():
 def scrape_page_playwright(url: str):
     global browser, playwright_ctx_cookie_dict
     if browser is None:
-        browser = (init_steel() if SCRAPER == 'steel' else init_playwright())
+        browser = (init_steel() if _scraper == 'steel' else init_playwright())
     # 每次新建 context，并注入 cookie
     with browser.new_context() as context:
         if playwright_ctx_cookie_dict:
@@ -175,12 +175,12 @@ def scrape_page_requests(url: str):
     return resp.text
 
 def scrape_page(url: str):
-    if SCRAPER == 'playwright' or SCRAPER == 'steel':
+    if _scraper == 'playwright' or _scraper == 'steel':
         return scrape_page_playwright(url)
-    elif SCRAPER == 'requests':
+    elif _scraper == 'requests':
         return scrape_page_requests(url)
     else:
-        raise ValueError(f"Unknown scraper: {SCRAPER}")
+        raise ValueError(f"Unknown _scraper: {_scraper}")
 
 def build_url_with_params(base_url: str, params: dict):
     if not params:
@@ -320,7 +320,7 @@ def scrape():
         page += 1
         time.sleep(random.uniform(1, 3))
     
-    if SCRAPER == 'steel':
+    if _scraper == 'steel':
         exit_steel() # close Steel session
 
     # 新内容在前，拼接后写入
@@ -586,4 +586,7 @@ def main():
     create_html_epub()
 
 if __name__ == '__main__':
+    if len(sys.argv) > 1:
+        _scraper = sys.argv[1]
+        print(f'[INFO] Using scraper: {_scraper}')
     main()

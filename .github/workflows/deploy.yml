@@ -5,8 +5,7 @@ on:
     branches:
       - main
   schedule:
-    # 04:00 UTC = 12:00 CST; 16:00 UTC = 00:00 CST
-    - cron: '0 4/12 * * *'
+    - cron: '30 4/8 * * *'
 
 permissions:
   contents: write

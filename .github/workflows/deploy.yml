@@ -5,8 +5,10 @@ on:
     branches:
       - main
   schedule:
-    # 04:00 UTC = 12:00 CST
-    - cron: '0 4 * * *'
+    - cron: '30 4/8 * * *'
+
+permissions:
+  contents: write
 
 jobs:
   deploy:

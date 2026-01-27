@@ -5,7 +5,7 @@ on:
     branches:
       - main
   schedule:
-    - cron: '30 4/8 * * *'
+    - cron: '30 4-23/8 * * *'
 
 permissions:
   contents: write
@@ -45,6 +45,7 @@ jobs:
 
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v4
+      if: always()
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./docs

@@ -1,4 +1,4 @@
-name: Daily and On-Commit Deploy
+name: Scrape and Deploy
 
 on:
   push:
@@ -45,7 +45,7 @@ jobs:
 
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v4
-      if: always()
+      if: github.event_name == 'push' || success()
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./docs

@@ -28,24 +28,27 @@ jobs:
           // Get today's date in UTC
           const now = new Date();
           const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const todayISO = today.toISOString().split('T')[0];
           
-          // Get workflow runs
+          // Get workflow runs from today
           const runs = await github.rest.actions.listWorkflowRuns({
             owner,
             repo,
             workflow_id,
             per_page: 100,
-            status: 'completed'
+            status: 'completed',
+            created: `>=${todayISO}`
           });
           
-          // Check if any run succeeded today
+          // Check if any run succeeded today (excluding current run)
           for (const run of runs.data.workflow_runs) {
             const runDate = new Date(run.created_at);
             const runDay = new Date(runDate.getFullYear(), runDate.getMonth(), runDate.getDate());
             
             if (runDay.getTime() === today.getTime() && 
                 run.conclusion === 'success' && 
-                run.event === 'schedule') {
+                run.event === 'schedule' &&
+                run.id !== context.runId) {
               console.log(`Found successful scheduled run today: ${run.html_url}`);
               core.setOutput('should_skip', 'true');
               return;

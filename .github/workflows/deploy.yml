@@ -27,7 +27,7 @@ jobs:
           
           // Get today's date in UTC
           const now = new Date();
-          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
           const todayISO = today.toISOString().split('T')[0];
           
           // Get workflow runs from today
@@ -43,7 +43,7 @@ jobs:
           // Check if any run succeeded today (excluding current run)
           for (const run of runs.data.workflow_runs) {
             const runDate = new Date(run.created_at);
-            const runDay = new Date(runDate.getFullYear(), runDate.getMonth(), runDate.getDate());
+            const runDay = new Date(Date.UTC(runDate.getUTCFullYear(), runDate.getUTCMonth(), runDate.getUTCDate()));
             
             if (runDay.getTime() === today.getTime() && 
                 run.conclusion === 'success' && 

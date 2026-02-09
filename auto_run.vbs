@@ -13,7 +13,7 @@ gitPush = "git -C D:\dev\epub8 push origin main"
 Set fso = CreateObject("Scripting.FileSystemObject")
 Set shell = CreateObject("WScript.Shell")
 today = Year(Now) & "-" & Right("0" & Month(Now),2) & "-" & Right("0" & Day(Now),2)
-gitCommit = "git -C D:\dev\epub8 commit -m ""auto update " & today & """"
+gitCommit = "git -C D:\dev\epub8 commit -m ""Manual update for " & today & """"
 
 Set logFile = fso.OpenTextFile(logPath, 8, True)
 

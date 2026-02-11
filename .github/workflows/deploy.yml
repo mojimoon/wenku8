@@ -47,6 +47,11 @@ jobs:
     - name: Run main.py
       run: |
         python main.py
+    
+    # only execute the following steps if: github.event_name == 'push' || success()
+    - name: Exit on scheduled run failure
+      if: github.event_name != 'push' && failure()
+      run: exit 1
 
     - name: Setup Pages
       uses: actions/configure-pages@v5

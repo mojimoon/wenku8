@@ -4,7 +4,7 @@ An automated crawler and static site generator for light novel ebooks from [轻�
 
 ---
 
-[![pages-build-deployment](https://github.com/mojimoon/wenku8/actions/workflows/pages/pages-build-deployment/badge.svg)](https://github.com/mojimoon/wenku8/actions/workflows/pages/pages-build-deployment) [![Scrape and Deploy](https://github.com/mojimoon/wenku8/actions/workflows/deploy.yml/badge.svg)](https://github.com/mojimoon/wenku8/actions/workflows/deploy.yml)
+[![Scrape and Deploy](https://github.com/mojimoon/wenku8/actions/workflows/deploy.yml/badge.svg)](https://github.com/mojimoon/wenku8/actions/workflows/deploy.yml)
 
 自动化从 [轻小说文库](https://www.wenku8.net) 获取 EPUB 格式电子书，并将结果整合为网页呈现：
 

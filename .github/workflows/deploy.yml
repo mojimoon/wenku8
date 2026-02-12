@@ -9,14 +9,9 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 jobs:
   deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
 
     steps:
@@ -48,17 +43,9 @@ jobs:
       run: |
         python main.py
 
-    - name: Setup Pages
-      uses: actions/configure-pages@v5
-      if: github.event_name == 'push' || success()
-
-    - name: Upload artifact
-      uses: actions/upload-pages-artifact@v3
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v4
       if: github.event_name == 'push' || success()
       with:
-        path: './docs'
-
-    - name: Deploy to GitHub Pages
-      id: deployment
-      uses: actions/deploy-pages@v4
-      if: github.event_name == 'push' || success()
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./docs

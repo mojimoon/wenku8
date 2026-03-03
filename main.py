@@ -109,7 +109,7 @@ def init_steel():
     global browser, playwright_ctx_cookie_dict, steel_dict
     steel_api_key = dotenv_values().get('STEEL_API_KEY', '')
     client = Steel(steel_api_key=steel_api_key)
-    steel_session = client.sessions.create(api_timeout=20000)
+    steel_session = client.sessions.create(api_timeout=40000)
     print(f'[INFO] Running Steel session: {steel_session.id}')
     steel_dict = {
         'api_key': steel_api_key,

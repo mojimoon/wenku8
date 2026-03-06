@@ -156,7 +156,11 @@ def scrape_page_playwright(url: str):
             ]
             context.add_cookies(cookies)
         page = context.new_page()
-        page.goto(url, wait_until='networkidle')
+        try:
+            page.goto(url, wait_until='domcontentloaded')
+        except Exception as e:
+            print(f"[WARN] Page.goto encountered an error or timeout, attempting to proceed: {e}")
+
         if "/login.php" in page.url:
             raise ValueError(f"[ERROR] Playwright 模式被重定向到登录页，可能需要更新 COOKIE 文件: {page.url}")
         html_content = page.content()

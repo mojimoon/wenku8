@@ -150,7 +150,6 @@ def scrape_page_playwright(url: str):
                     "value": v,
                     "domain": "www.wenku8.net",
                     "path": "/",
-                    # 可按需设置 "httpOnly" / "secure" / "sameSite"
                 }
                 for k, v in playwright_ctx_cookie_dict.items()
             ]

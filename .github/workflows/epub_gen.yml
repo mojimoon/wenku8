@@ -2,7 +2,7 @@ name: Generate EPUBs
 
 on:
   schedule:
-    # 每天北京时间 8:00 (UTC+8) 运行
+    # 每天北京时间 8:00 (UTC 0:00) 运行
     - cron: '0 0 * * *'
   workflow_dispatch:
     inputs:
@@ -14,11 +14,20 @@ on:
         description: '限制处理数量（0=无限制）'
         type: number
         default: 3
+      scraper:
+        description: '爬虫模式'
+        type: choice
+        options:
+          - auto
+          - steel
+          - playwright
+          - requests
+        default: auto
 
 jobs:
   generate:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -31,15 +40,20 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium --with-deps
 
       - name: Generate EPUBs
         id: gen
         env:
           WENKU8_COOKIE: ${{ secrets.WENKU8_COOKIE }}
+          STEEL_API_KEY: ${{ secrets.STEEL_API_KEY }}
         run: |
           FORCE_FLAG=""
           LIMIT_FLAG=""
+          SCRAPER_FLAG="--scraper auto"
+
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             if [ "${{ inputs.force }}" = "true" ]; then
               FORCE_FLAG="--force"
@@ -47,34 +61,54 @@ jobs:
             if [ "${{ inputs.limit }}" != "" ] && [ "${{ inputs.limit }}" != "0" ]; then
               LIMIT_FLAG="--limit ${{ inputs.limit }}"
             fi
+            SCRAPER_FLAG="--scraper ${{ inputs.scraper }}"
           else
             # 定期运行时: 检查最近 3 本
             LIMIT_FLAG="--limit 3"
           fi
-          python gen_epub.py $FORCE_FLAG $LIMIT_FLAG
-          echo "epub_count=$(python -c "import json; d=json.load(open('out/epub_summary.json')); print(len(d.get('generated',[])))" 2>/dev/null || echo 0)" >> $GITHUB_OUTPUT
+
+          python gen_epub.py $FORCE_FLAG $LIMIT_FLAG $SCRAPER_FLAG
+
+          # 读取生成数量
+          COUNT=$(python -c "import json; d=json.load(open('out/epub_summary.json')); print(len(d.get('generated',[])))" 2>/dev/null || echo 0)
+          echo "epub_count=${COUNT}" >> $GITHUB_OUTPUT
+
+          # 输出生成列表
+          if [ "$COUNT" != "0" ]; then
+            echo "### 本次生成 EPUB" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            python -c "
+import json
+d = json.load(open('out/epub_summary.json'))
+for g in d.get('generated', []):
+    print(f'- **{g[\"title\"]}** (v{g[\"epub_version\"]}) — {g[\"author\"]}')
+" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "无更新内容，跳过生成。" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Upload EPUBs to Release
         if: steps.gen.outputs.epub_count != '0'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: epub-${{ github.run_id }}
-          name: "EPUBs - ${{ github.event.repository.updated_at || 'auto' }}"
+          name: "EPUBs - ${{ github.event.repository.updated_at }}"
           body: |
-            ## 📚 自动生成的 EPUB
+            ## 📚 自动生成的 EPUB 轻小说
 
-            **生成时间**: ${{ github.event.head_commit.timestamp || 'auto' }}
+            **生成时间**: ${{ github.event.head_commit.timestamp || github.event.repository.updated_at }}
+            **本次数量**: ${{ steps.gen.outputs.epub_count }} 本
 
-            本次共生成 **${{ steps.gen.outputs.epub_count }}** 本 EPUB 小说。
+            内容来源：轻小说文库 (wenku8.net)，仅供学习交流使用。
 
-            ### 下载说明
+            ### 下载与阅读
 
-            所有 EPUB 文件可以直接下载使用，兼容 Kindle、Calibre、Apple Books 等阅读器。
+            所有 EPUB 兼容 **Kindle、Calibre、Apple Books、多看** 等主流阅读器。
 
-            ---
-            *由 GitHub Actions 自动生成*
-          files: out/epub/*.epub
-          generate_release_notes: false
+            ### 镜像加速
+
+            如 GitHub 下载缓慢，可在 Release 资源链接前添加：
+            - `https://ghproxy.net/` 或 `https://ghfast.top/`
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -86,14 +120,3 @@ jobs:
           git add out/epub_state.json
           git diff --staged --quiet || git commit -m "chore: update epub state [skip ci]"
           git push
-
-      - name: Summary
-        run: |
-          echo "## 📊 EPUB Generation Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| 项目 | 值 |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|-----|" >> $GITHUB_STEP_SUMMARY
-          echo "| 生成数量 | ${{ steps.gen.outputs.epub_count }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Release Tag | \`epub-${{ github.run_id }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "[查看 Releases](${{ github.server_url }}/${{ github.repository }}/releases)" >> $GITHUB_STEP_SUMMARY

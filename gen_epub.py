@@ -3,7 +3,8 @@ EPUB 自动生成管道
 从 wenku8.net 最近更新列表爬取小说，生成 EPUB3 文件。
 
 用法:
-    python gen_epub.py              # 默认: 检查更新并生成
+    python gen_epub.py              # 默认: steel 模式检查更新并生成
+    python gen_epub.py --scraper requests  # 使用 requests 模式
     python gen_epub.py --force      # 强制重新生成所有
     python gen_epub.py --limit 3    # 限制处理数量
 """
@@ -11,19 +12,20 @@ EPUB 自动生成管道
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 import os
 import re
 import json
 import time
 import random
-import hashlib
 import datetime
 import argparse
 from pathlib import Path
 
 from epub_maker import NovelMeta, Chapter, make_epub_from_raw
 
-# ─── 配置 ──────────────────────────────────────────────
+# ─── 全局配置 ──────────────────────────────────────────
 
 DOMAIN = 'https://www.wenku8.net'
 EPUB_OUT_DIR = os.path.join('out', 'epub')
@@ -31,13 +33,29 @@ STATE_FILE = os.path.join('out', 'epub_state.json')
 COOKIE_FILE = os.path.join(os.path.dirname(__file__), 'COOKIE')
 CHAPTER_DELAY = (0.5, 1.5)  # 章节间延迟范围 (秒)
 
-SESSION = None
+# 爬虫模式: 'steel' | 'playwright' | 'requests'
+_scraper = 'steel'
 
-# ─── Session 管理 ──────────────────────────────────────
+user_agents = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Safari/605.1.15',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Safari/605.1.15',
+]
+
+HEADERS = {
+    'User-Agent': random.choice(user_agents),
+    'Referer': 'https://www.wenku8.net/',
+}
+
+# ─── Cookie 解析 ───────────────────────────────────────
 
 
 def _parse_cookie_line(line: str) -> dict:
-    """解析 COOKIE 文件中的 cookie 行"""
+    """解析 COOKIE 文件 / 环境变量中的 cookie 行"""
     cookie_dict = {}
     for part in line.strip().split(';'):
         part = part.strip()
@@ -48,41 +66,164 @@ def _parse_cookie_line(line: str) -> dict:
     return cookie_dict
 
 
-def _init_session() -> requests.Session:
-    """初始化带 Cookie 的 requests Session"""
-    ses = requests.Session()
-    ses.headers.update({
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/109.0.0.0 Safari/537.36',
-        'Referer': 'https://www.wenku8.net/',
-    })
-
-    cookie_line = None
-    # 优先从环境变量读取（CI/CD 场景）
+def _get_cookie_line() -> str | None:
+    """获取 cookie 字符串，优先环境变量 → 文件"""
     env_cookie = os.environ.get('WENKU8_COOKIE', '')
     if env_cookie:
-        cookie_line = env_cookie
-    elif os.path.exists(COOKIE_FILE):
+        return env_cookie
+    if os.path.exists(COOKIE_FILE):
         with open(COOKIE_FILE, 'r', encoding='utf-8') as f:
-            cookie_line = f.readline()
-
-    if cookie_line:
-        jar = requests.utils.cookiejar_from_dict(_parse_cookie_line(cookie_line))
-        ses.cookies.update(jar)
-
-    return ses
+            return f.readline().strip()
+    return None
 
 
-def _fetch(url: str, timeout: int = 20) -> requests.Response:
-    """统一的页面请求"""
-    global SESSION
-    if SESSION is None:
-        SESSION = _init_session()
-    resp = SESSION.get(url, timeout=timeout, allow_redirects=True)
-    resp.encoding = 'utf-8'
-    if '/login.php' in resp.url:
-        raise RuntimeError(f'被重定向到登录页，Cookie 可能已过期: {resp.url}')
+# ─── Scraper 基础设施（复刻 main.py 架构）──────────────
+
+# requests 模式的全局 session（带重试）
+retry_strategy = Retry(total=5, status_forcelist=[500, 502, 503, 504], backoff_factor=2)
+req_session = requests.Session()
+req_session.mount('http://', HTTPAdapter(max_retries=retry_strategy))
+req_session.mount('https://', HTTPAdapter(max_retries=retry_strategy))
+req_session.headers.update(HEADERS)
+_cookie_line = _get_cookie_line()
+if _cookie_line:
+    jar = requests.utils.cookiejar_from_dict(_parse_cookie_line(_cookie_line))
+    req_session.cookies.update(jar)
+
+# playwright / steel 全局状态
+browser = None
+playwright_ctx_cookie_dict = None
+steel_dict = None
+_global_cookie_line = _cookie_line  # 供 playwright 注入用
+
+
+def _to_playwright_cookies(cookie_line: str) -> list[dict]:
+    """将 cookie 字符串转为 Playwright cookie 对象列表"""
+    cookie_dict = _parse_cookie_line(cookie_line)
+    return [
+        {"name": k, "value": v, "domain": "www.wenku8.net", "path": "/"}
+        for k, v in cookie_dict.items()
+    ]
+
+
+def init_playwright():
+    """初始化本地 Playwright 浏览器"""
+    from playwright.sync_api import sync_playwright
+    global browser, playwright_ctx_cookie_dict
+    if browser is None:
+        pw = sync_playwright().start()
+        browser = pw.chromium.launch(
+            headless=True,
+            args=['--no-sandbox', '--disable-setuid-sandbox']
+        )
+        if _global_cookie_line:
+            playwright_ctx_cookie_dict = _to_playwright_cookies(_global_cookie_line)
+        else:
+            playwright_ctx_cookie_dict = []
+    return browser
+
+
+def init_steel():
+    """初始化 Steel 云端浏览器"""
+    from steel import Steel
+    from dotenv import dotenv_values
+    from playwright.sync_api import sync_playwright
+    global browser, playwright_ctx_cookie_dict, steel_dict
+
+    steel_api_key = dotenv_values().get('STEEL_API_KEY', '') or os.environ.get('STEEL_API_KEY', '')
+    if not steel_api_key:
+        raise RuntimeError('[ERROR] Steel 模式需要 STEEL_API_KEY 环境变量或 .env 文件')
+
+    client = Steel(steel_api_key=steel_api_key)
+    steel_session = client.sessions.create(api_timeout=40000)
+    print(f'[INFO] Running Steel session: {steel_session.id}')
+    steel_dict = {
+        'api_key': steel_api_key,
+        'session_id': steel_session.id,
+        'client': client
+    }
+
+    if browser is None:
+        pw = sync_playwright().start()
+        browser = pw.chromium.connect_over_cdp(
+            f'wss://connect.steel.dev?apiKey={steel_api_key}&sessionId={steel_session.id}'
+        )
+        if _global_cookie_line:
+            playwright_ctx_cookie_dict = _to_playwright_cookies(_global_cookie_line)
+        else:
+            playwright_ctx_cookie_dict = []
+
+    return browser
+
+
+def exit_steel():
+    """释放 Steel 会话"""
+    global browser, steel_dict
+    if steel_dict:
+        try:
+            browser.close()
+        except Exception:
+            pass
+        try:
+            steel_dict['client'].sessions.release(steel_dict['session_id'])
+        except Exception:
+            pass
+        steel_dict = None
+    browser = None
+
+
+def scrape_page_playwright(url: str) -> str:
+    """通过 Playwright（本地或 Steel 远程）获取页面 HTML"""
+    global browser, playwright_ctx_cookie_dict
+    if browser is None:
+        browser = (init_steel() if _scraper == 'steel' else init_playwright())
+
+    with browser.new_context() as context:
+        if playwright_ctx_cookie_dict:
+            context.add_cookies(playwright_ctx_cookie_dict)
+        page = context.new_page()
+        try:
+            page.goto(url, wait_until='domcontentloaded')
+        except Exception as e:
+            print(f"[WARN] Page.goto encountered an error or timeout, attempting to proceed: {e}")
+
+        if "/login.php" in page.url:
+            raise RuntimeError(f"[ERROR] Playwright 模式被重定向到登录页，Cookie 可能已过期: {page.url}")
+        html_content = page.content()
+        page.close()
+    return html_content
+
+
+def scrape_page_requests(url: str) -> str:
+    """通过 requests 获取页面 HTML"""
+    resp = req_session.get(url, timeout=15, allow_redirects=True)
+    final_url = resp.url
+    if '/login.php' in final_url:
+        raise RuntimeError(f"[ERROR] Requests 模式被重定向到登录页，Cookie 可能已过期: {final_url}")
     resp.raise_for_status()
-    return resp
+    resp.encoding = 'utf-8'
+    return resp.text
+
+
+def scrape_page(url: str) -> str:
+    """统一的页面爬取入口"""
+    if _scraper in ('playwright', 'steel'):
+        return scrape_page_playwright(url)
+    elif _scraper == 'requests':
+        return scrape_page_requests(url)
+    else:
+        raise ValueError(f"Unknown _scraper: {_scraper}")
+
+
+def _fetch_binary(url: str, timeout: int = 15) -> bytes | None:
+    """下载二进制文件（封面图），始终用 requests"""
+    try:
+        resp = req_session.get(url, timeout=timeout)
+        if resp.status_code == 200 and len(resp.content) > 1000:
+            return resp.content
+    except Exception:
+        pass
+    return None
 
 
 # ─── 状态管理 ──────────────────────────────────────────
@@ -114,8 +255,8 @@ def crawl_toplist() -> list[dict]:
         [{'aid': int, 'title': str, 'book_url': str}, ...]
     """
     url = f'{DOMAIN}/modules/article/toplist.php?sort=lastupdate'
-    resp = _fetch(url)
-    soup = BeautifulSoup(resp.text, 'html.parser')
+    html = scrape_page(url)
+    soup = BeautifulSoup(html, 'html.parser')
 
     # 提取所有 /book/XXXX.htm 链接，按 book ID 分组
     book_groups = {}  # {aid: [(text, href), ...]}
@@ -134,13 +275,12 @@ def crawl_toplist() -> list[dict]:
     # 从分组中提取书名（取非空且非操作文本的链接）
     novels = []
     seen = set()
+    operation_texts = {'我要阅读', '加入书架', '推荐本书'}
     for aid, entries in book_groups.items():
         if aid in seen:
             continue
         seen.add(aid)
 
-        # 找书名链接（文本不为空且不是操作文本）
-        operation_texts = {'我要阅读', '加入书架', '推荐本书'}
         title = ''
         for text, href in entries:
             if text and text not in operation_texts:
@@ -165,7 +305,6 @@ def crawl_toplist() -> list[dict]:
 def crawl_detail(book_url: str) -> dict:
     """
     爬取小说详情页。
-    注意：此页面的元数据不是结构化 HTML，需要从文本中提取。
 
     Returns:
         {
@@ -175,13 +314,12 @@ def crawl_detail(book_url: str) -> dict:
             'toc_url': str, 'cover_url': str,
         }
     """
-    resp = _fetch(book_url)
-    soup = BeautifulSoup(resp.text, 'html.parser')
+    html = scrape_page(book_url)
+    soup = BeautifulSoup(html, 'html.parser')
 
     # 从 <title> 提取书名、作者、文库
     title_tag = soup.find('title')
     page_title = title_tag.text.strip() if title_tag else ''
-    # 格式: "书名 - 作者 - 文库 - 轻小说文库" 或 "书名(别名) - 作者 - 文库 - ..."
     title_parts = [p.strip() for p in page_title.split(' - ')]
 
     result = {
@@ -200,37 +338,30 @@ def crawl_detail(book_url: str) -> dict:
     # 从页面文本中提取结构化元数据
     body_text = soup.get_text('\n', strip=True)
 
-    # 文库分类
     m = re.search(r'文库分类[：:]\s*(.+)', body_text)
     if m:
         result['publisher'] = m.group(1).strip()
 
-    # 小说作者
     m = re.search(r'小说作者[：:]\s*(.+)', body_text)
     if m:
         result['author'] = m.group(1).strip()
 
-    # 文章状态
     m = re.search(r'文章状态[：:]\s*(.+)', body_text)
     if m:
         result['status'] = m.group(1).strip()
 
-    # 最后更新
     m = re.search(r'最后更新[：:]\s*(\d{4}-\d{2}-\d{2})', body_text)
     if m:
         result['last_update'] = m.group(1).strip()
 
-    # 全文长度
     m = re.search(r'全文长度[：:]\s*(\d+)字', body_text)
     if m:
         result['length'] = f"{m.group(1)}字"
 
-    # Tags
-    m = re.search(r'作品Tags[：:]\s*(.+)', body_text)
+    m = re.search(r'作品Tags[：:]\s*([^\n]+)', body_text)
     if m:
         result['tags'] = [t.strip() for t in m.group(1).split() if t.strip()]
 
-    # 内容简介
     m = re.search(r'内容简介[：:]\s*\n?(.+?)(?:阅读\s*小说目录|\Z)', body_text, re.DOTALL)
     if m:
         result['description'] = m.group(1).strip()[:500]
@@ -263,8 +394,8 @@ def crawl_toc(toc_url: str) -> list[dict]:
     Returns:
         [{'title': str, 'url': str, 'cid': int}, ...]
     """
-    resp = _fetch(toc_url)
-    soup = BeautifulSoup(resp.text, 'html.parser')
+    html = scrape_page(toc_url)
+    soup = BeautifulSoup(html, 'html.parser')
 
     chapters = []
     seen_cids = set()
@@ -301,8 +432,8 @@ def crawl_chapter(chapter_url: str) -> str:
     Returns:
         纯文本内容
     """
-    resp = _fetch(chapter_url)
-    soup = BeautifulSoup(resp.text, 'html.parser')
+    html = scrape_page(chapter_url)
+    soup = BeautifulSoup(html, 'html.parser')
 
     content_div = soup.find('div', id='content')
     if not content_div:
@@ -316,16 +447,10 @@ def crawl_chapter(chapter_url: str) -> str:
 
 
 def download_cover(cover_url: str) -> bytes | None:
-    """下载封面图片"""
+    """下载封面图片（二进制，始终用 requests）"""
     if not cover_url:
         return None
-    try:
-        resp = _fetch(cover_url, timeout=15)
-        if resp.status_code == 200 and len(resp.content) > 1000:
-            return resp.content
-    except Exception:
-        pass
-    return None
+    return _fetch_binary(cover_url)
 
 
 # ─── 文件名安全化 ─────────────────────────────────────
@@ -349,7 +474,7 @@ def run_pipeline(force: bool = False, limit: int = 0):
         force: 是否强制重新生成所有小说
         limit: 最大处理数量（0 = 无限制）
     """
-    print(f'[{datetime.datetime.now():%Y-%m-%d %H:%M:%S}] 开始 EPUB 生成管道')
+    print(f'[{datetime.datetime.now():%Y-%m-%d %H:%M:%S}] 开始 EPUB 生成管道 (scraper={_scraper})')
 
     os.makedirs(EPUB_OUT_DIR, exist_ok=True)
 
@@ -369,11 +494,9 @@ def run_pipeline(force: bool = False, limit: int = 0):
     targets = []
     for novel in toplist:
         aid = str(novel['aid'])
-        # 如果 force 模式，或该小说从未处理过
         if force or aid not in novels_info:
             targets.append(novel)
         else:
-            # 跳过最近 3 天内已处理过的
             prev_info = novels_info[aid]
             prev_date = prev_info.get('last_update', '')
             if prev_date < (datetime.date.today() - datetime.timedelta(days=3)).isoformat():
@@ -384,6 +507,7 @@ def run_pipeline(force: bool = False, limit: int = 0):
 
     if not targets:
         print('  没有需要处理的小说，退出。')
+        _cleanup()
         return
 
     print(f'  需要处理 {len(targets)} 本小说')
@@ -423,7 +547,6 @@ def run_pipeline(force: bool = False, limit: int = 0):
             chapters_meta = crawl_toc(detail['toc_url'])
             time.sleep(random.uniform(0.3, 1.0))
 
-            # 过滤掉插图、后记等特殊章节（保留它们但标记）
             print(f'    共 {len(chapters_meta)} 个章节')
 
             if not chapters_meta:
@@ -461,7 +584,6 @@ def run_pipeline(force: bool = False, limit: int = 0):
             safe_title = _safe_filename(detail['title'])
             epub_path = os.path.join(EPUB_OUT_DIR, f'{safe_title}.epub')
 
-            # 检查是否已存在旧版，版本号递增
             version = 1
             if aid in novels_info:
                 version = novels_info[aid].get('epub_version', 0) + 1
@@ -513,13 +635,15 @@ def run_pipeline(force: bool = False, limit: int = 0):
     state['last_run'] = datetime.datetime.now().isoformat()
     _save_state(state)
 
-    # Step 5: 输出摘要
+    # Step 5: 清理 scraper
+    _cleanup()
+
+    # Step 6: 输出摘要
     print(f'\n[5/5] 管道完成!')
     print(f'  本次生成: {len(generated)} 本 EPUB')
     for g in generated:
         print(f'    - {g["title"]} (v{g["epub_version"]}) -> {g["epub_path"]}')
 
-    # 输出 JSON 格式的摘要（供 CI/CD 使用）
     summary = {
         'timestamp': datetime.datetime.now().isoformat(),
         'generated': generated,
@@ -532,16 +656,57 @@ def run_pipeline(force: bool = False, limit: int = 0):
     return summary
 
 
+def _cleanup():
+    """清理 scraper 资源"""
+    global _scraper
+    if _scraper == 'steel':
+        exit_steel()
+
+
 # ─── CLI ───────────────────────────────────────────────
+
+
+def _detect_scraper() -> str:
+    """自动检测可用的爬虫模式（优先 Steel → Playwright → Requests）"""
+    # 检查 Steel
+    steel_key = os.environ.get('STEEL_API_KEY', '')
+    if not steel_key:
+        try:
+            from dotenv import dotenv_values
+            steel_key = dotenv_values().get('STEEL_API_KEY', '')
+        except ImportError:
+            pass
+    if steel_key:
+        return 'steel'
+
+    # 检查 Playwright
+    try:
+        from playwright.sync_api import sync_playwright
+        return 'playwright'
+    except ImportError:
+        pass
+
+    # 回退到 requests（wenku8 有 Cloudflare，可能 403）
+    print('[WARN] Steel 和 Playwright 均不可用，使用 requests 模式（可能被 Cloudflare 拦截）')
+    return 'requests'
 
 
 def main():
     parser = argparse.ArgumentParser(description='wenku8 EPUB 自动生成管道')
+    parser.add_argument('--scraper', choices=['steel', 'playwright', 'requests', 'auto'],
+                        default='auto', help='爬虫模式: auto=自动检测, steel/playwright/requests')
     parser.add_argument('--force', action='store_true', help='强制重新生成所有')
     parser.add_argument('--limit', type=int, default=0, help='限制处理数量')
     parser.add_argument('--max-chapters', type=int, default=0,
                         help='每个小说的最大章节数（0=无限制）')
     args = parser.parse_args()
+
+    global _scraper
+    if args.scraper == 'auto':
+        _scraper = _detect_scraper()
+    else:
+        _scraper = args.scraper
+    print(f'[INFO] Using scraper: {_scraper}')
 
     run_pipeline(force=args.force, limit=args.limit)
 

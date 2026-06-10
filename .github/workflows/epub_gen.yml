@@ -43,7 +43,6 @@ jobs:
         run: |
           pip install -r requirements.txt
           playwright install chromium --with-deps
-
       - name: Generate EPUBs
         id: gen
         env:
@@ -75,17 +74,21 @@ jobs:
 
           # 输出生成列表
           if [ "$COUNT" != "0" ]; then
-            echo "### 本次生成 EPUB" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-#             python -c "
-# import json
-# d = json.load(open('out/epub_summary.json'))
-# for g in d.get('generated', []):
-#     print(f'- **{g[\"title\"]}** (v{g[\"epub_version\"]}) — {g[\"author\"]}')
-# " >> $GITHUB_STEP_SUMMARY
-#           else
-#             echo "无更新内容，跳过生成。" >> $GITHUB_STEP_SUMMARY
+            {
+              echo "### 本次生成 EPUB"
+              echo ""
+              python3 << 'PYEOF'
+import json
+d = json.load(open("out/epub_summary.json"))
+for g in d.get("generated", []):
+    print(f'- **{g["title"]}** (v{g["epub_version"]}) — {g["author"]}')
+PYEOF
+            } >> $GITHUB_STEP_SUMMARY
+          else
+            echo "无更新内容，跳过生成。" >> $GITHUB_STEP_SUMMARY
           fi
+
+
 
       - name: Upload EPUBs to Release
         if: steps.gen.outputs.epub_count != '0'

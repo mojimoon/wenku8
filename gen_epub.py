@@ -480,155 +480,161 @@ def run_pipeline(force: bool = False, limit: int = 0):
 
     state = _load_state()
     novels_info = state.get('novels', {})
-
-    # Step 1: 爬取最近更新列表
-    print('[1/5] 爬取最近更新列表...')
-    try:
-        toplist = crawl_toplist()
-    except RuntimeError as e:
-        print(f'  [ERROR] {e}')
-        return
-    print(f'  获取到 {len(toplist)} 本小说')
-
-    # Step 2: 筛选需要处理的小说
-    targets = []
-    for novel in toplist:
-        aid = str(novel['aid'])
-        if force or aid not in novels_info:
-            targets.append(novel)
-        else:
-            prev_info = novels_info[aid]
-            prev_date = prev_info.get('last_update', '')
-            if prev_date < (datetime.date.today() - datetime.timedelta(days=3)).isoformat():
-                targets.append(novel)
-
-    if limit > 0:
-        targets = targets[:limit]
-
-    if not targets:
-        print('  没有需要处理的小说，退出。')
-        _cleanup()
-        return
-
-    print(f'  需要处理 {len(targets)} 本小说')
-
-    # Step 3: 逐本处理
     generated = []
-    for idx, novel in enumerate(targets):
-        aid = str(novel['aid'])
-        print(f'\n[3.{idx+1}/{len(targets)}] 处理: {novel["title"][:50]} (aid={aid})')
+    pipeline_error = None
+    toplist = []
 
-        try:
-            # 3a. 爬取详情页
-            print(f'    爬取详情页...')
-            detail = crawl_detail(novel['book_url'])
-            time.sleep(random.uniform(0.3, 1.0))
+    try:
+        # Step 1: 爬取最近更新列表
+        print('[1/5] 爬取最近更新列表...')
+        toplist = crawl_toplist()
+        print(f'  获取到 {len(toplist)} 本小说')
+    except RuntimeError as e:
+        pipeline_error = f'toplist 爬取失败: {e}'
+        print(f'  [ERROR] {e}')
+        import traceback
+        traceback.print_exc()
 
-            # 检查是否有更新（非强制模式下）
-            if not force and aid in novels_info:
-                prev = novels_info[aid]
-                if prev.get('last_update', '') == detail.get('last_update', '') and \
-                   prev.get('epub_version', 0) > 0:
-                    print(f'    无更新，跳过。')
+    if toplist:
+        # Step 2: 筛选需要处理的小说
+        targets = []
+        for novel in toplist:
+            aid = str(novel['aid'])
+            if force or aid not in novels_info:
+                targets.append(novel)
+            else:
+                prev_info = novels_info[aid]
+                prev_date = prev_info.get('last_update', '')
+                if prev_date < (datetime.date.today() - datetime.timedelta(days=3)).isoformat():
+                    targets.append(novel)
+
+        if limit > 0:
+            targets = targets[:limit]
+
+        if not targets:
+            print('  没有需要处理的小说，退出。')
+
+        if targets:
+            print(f'  需要处理 {len(targets)} 本小说')
+
+            # Step 3: 逐本处理
+            for idx, novel in enumerate(targets):
+                aid = str(novel['aid'])
+                print(f'\n[3.{idx+1}/{len(targets)}] 处理: {novel["title"][:50]} (aid={aid})')
+
+                try:
+                    # 3a. 爬取详情页
+                    print(f'    爬取详情页...')
+                    detail = crawl_detail(novel['book_url'])
+                    time.sleep(random.uniform(0.3, 1.0))
+
+                    # 检查是否有更新（非强制模式下）
+                    if not force and aid in novels_info:
+                        prev = novels_info[aid]
+                        if prev.get('last_update', '') == detail.get('last_update', '') and \
+                           prev.get('epub_version', 0) > 0:
+                            print(f'    无更新，跳过。')
+                            continue
+
+                    print(f'    标题: {detail["title"][:40]}')
+                    print(f'    作者: {detail["author"]}')
+                    print(f'    更新: {detail["last_update"]}')
+                    print(f'    状态: {detail["status"]}')
+                    print(f'    标签: {", ".join(detail["tags"][:5])}')
+
+                    if not detail['toc_url']:
+                        print(f'    [WARN] 未找到目录页链接，跳过。')
+                        continue
+
+                    # 3b. 爬取目录页
+                    print(f'    爬取目录页...')
+                    chapters_meta = crawl_toc(detail['toc_url'])
+                    time.sleep(random.uniform(0.3, 1.0))
+
+                    print(f'    共 {len(chapters_meta)} 个章节')
+
+                    if not chapters_meta:
+                        print(f'    [WARN] 未找到章节，跳过。')
+                        continue
+
+                    # 3c. 爬取各章节正文
+                    print(f'    爬取章节正文...')
+                    chapters_data = []
+                    for ci, ch_meta in enumerate(chapters_meta):
+                        if ci > 0:
+                            time.sleep(random.uniform(*CHAPTER_DELAY))
+                        try:
+                            content = crawl_chapter(ch_meta['url'])
+                            if content:
+                                chapters_data.append((ch_meta['title'], content))
+                        except Exception as e:
+                            print(f'      [WARN] 章节 "{ch_meta["title"]}" 爬取失败: {e}')
+
+                        if (ci + 1) % 20 == 0:
+                            print(f'      已爬取 {ci + 1}/{len(chapters_meta)} 个章节...')
+
+                    print(f'    成功爬取 {len(chapters_data)}/{len(chapters_meta)} 个章节')
+
+                    if not chapters_data:
+                        print(f'    [WARN] 无章节内容，跳过。')
+                        continue
+
+                    # 3d. 下载封面
+                    print(f'    下载封面...')
+                    cover_data = download_cover(detail['cover_url'])
+
+                    # 3e. 生成 EPUB
+                    print(f'    生成 EPUB...')
+                    safe_title = _safe_filename(detail['title'])
+                    epub_path = os.path.join(EPUB_OUT_DIR, f'{safe_title}.epub')
+
+                    version = 1
+                    if aid in novels_info:
+                        version = novels_info[aid].get('epub_version', 0) + 1
+
+                    make_epub_from_raw(
+                        title=detail['title'],
+                        author=detail['author'],
+                        chapters_raw=chapters_data,
+                        description=detail.get('description', ''),
+                        source_url=novel['book_url'],
+                        publisher=detail.get('publisher', ''),
+                        subjects=detail.get('tags', []),
+                        cover_image_data=cover_data,
+                        output_path=epub_path,
+                        last_update=detail.get('last_update', ''),
+                    )
+
+                    file_size = os.path.getsize(epub_path)
+                    print(f'    完成: {epub_path} ({file_size / 1024:.1f} KB)')
+
+                    # 3f. 更新状态
+                    novels_info[aid] = {
+                        'aid': novel['aid'],
+                        'title': detail['title'],
+                        'author': detail['author'],
+                        'last_update': detail.get('last_update', ''),
+                        'updated_at': datetime.datetime.now().isoformat(),
+                        'epub_version': version,
+                        'epub_file': epub_path,
+                        'chapter_count': len(chapters_data),
+                    }
+
+                    generated.append({
+                        'aid': aid,
+                        'title': detail['title'],
+                        'author': detail['author'],
+                        'epub_path': epub_path,
+                        'epub_version': version,
+                    })
+
+                except Exception as e:
+                    print(f'    [ERROR] 处理失败: {e}')
+                    import traceback
+                    traceback.print_exc()
                     continue
 
-            print(f'    标题: {detail["title"][:40]}')
-            print(f'    作者: {detail["author"]}')
-            print(f'    更新: {detail["last_update"]}')
-            print(f'    状态: {detail["status"]}')
-            print(f'    标签: {", ".join(detail["tags"][:5])}')
-
-            if not detail['toc_url']:
-                print(f'    [WARN] 未找到目录页链接，跳过。')
-                continue
-
-            # 3b. 爬取目录页
-            print(f'    爬取目录页...')
-            chapters_meta = crawl_toc(detail['toc_url'])
-            time.sleep(random.uniform(0.3, 1.0))
-
-            print(f'    共 {len(chapters_meta)} 个章节')
-
-            if not chapters_meta:
-                print(f'    [WARN] 未找到章节，跳过。')
-                continue
-
-            # 3c. 爬取各章节正文
-            print(f'    爬取章节正文...')
-            chapters_data = []
-            for ci, ch_meta in enumerate(chapters_meta):
-                if ci > 0:
-                    time.sleep(random.uniform(*CHAPTER_DELAY))
-                try:
-                    content = crawl_chapter(ch_meta['url'])
-                    if content:
-                        chapters_data.append((ch_meta['title'], content))
-                except Exception as e:
-                    print(f'      [WARN] 章节 "{ch_meta["title"]}" 爬取失败: {e}')
-
-                if (ci + 1) % 20 == 0:
-                    print(f'      已爬取 {ci + 1}/{len(chapters_meta)} 个章节...')
-
-            print(f'    成功爬取 {len(chapters_data)}/{len(chapters_meta)} 个章节')
-
-            if not chapters_data:
-                print(f'    [WARN] 无章节内容，跳过。')
-                continue
-
-            # 3d. 下载封面
-            print(f'    下载封面...')
-            cover_data = download_cover(detail['cover_url'])
-
-            # 3e. 生成 EPUB
-            print(f'    生成 EPUB...')
-            safe_title = _safe_filename(detail['title'])
-            epub_path = os.path.join(EPUB_OUT_DIR, f'{safe_title}.epub')
-
-            version = 1
-            if aid in novels_info:
-                version = novels_info[aid].get('epub_version', 0) + 1
-
-            make_epub_from_raw(
-                title=detail['title'],
-                author=detail['author'],
-                chapters_raw=chapters_data,
-                description=detail.get('description', ''),
-                source_url=novel['book_url'],
-                publisher=detail.get('publisher', ''),
-                subjects=detail.get('tags', []),
-                cover_image_data=cover_data,
-                output_path=epub_path,
-                last_update=detail.get('last_update', ''),
-            )
-
-            file_size = os.path.getsize(epub_path)
-            print(f'    完成: {epub_path} ({file_size / 1024:.1f} KB)')
-
-            # 3f. 更新状态
-            novels_info[aid] = {
-                'aid': novel['aid'],
-                'title': detail['title'],
-                'author': detail['author'],
-                'last_update': detail.get('last_update', ''),
-                'updated_at': datetime.datetime.now().isoformat(),
-                'epub_version': version,
-                'epub_file': epub_path,
-                'chapter_count': len(chapters_data),
-            }
-
-            generated.append({
-                'aid': aid,
-                'title': detail['title'],
-                'author': detail['author'],
-                'epub_path': epub_path,
-                'epub_version': version,
-            })
-
-        except Exception as e:
-            print(f'    [ERROR] 处理失败: {e}')
-            import traceback
-            traceback.print_exc()
-            continue
+    # ── 以下始终执行，确保 workflow 能读到 summary ──
 
     # Step 4: 保存状态
     state['novels'] = novels_info
@@ -638,17 +644,22 @@ def run_pipeline(force: bool = False, limit: int = 0):
     # Step 5: 清理 scraper
     _cleanup()
 
-    # Step 6: 输出摘要
+    # Step 6: 输出摘要（无论成功/失败都写入文件）
     print(f'\n[5/5] 管道完成!')
     print(f'  本次生成: {len(generated)} 本 EPUB')
     for g in generated:
         print(f'    - {g["title"]} (v{g["epub_version"]}) -> {g["epub_path"]}')
+
+    if pipeline_error:
+        print(f'  错误: {pipeline_error}')
 
     summary = {
         'timestamp': datetime.datetime.now().isoformat(),
         'generated': generated,
         'total_count': len(generated),
     }
+    if pipeline_error:
+        summary['error'] = pipeline_error
     summary_file = os.path.join('out', 'epub_summary.json')
     with open(summary_file, 'w', encoding='utf-8') as f:
         json.dump(summary, f, ensure_ascii=False, indent=2)

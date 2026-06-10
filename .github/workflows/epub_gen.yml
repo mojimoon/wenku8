@@ -1,0 +1,99 @@
+name: Generate EPUBs
+
+on:
+  schedule:
+    # 每天北京时间 8:00 (UTC+8) 运行
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: '强制重新生成所有'
+        type: boolean
+        default: false
+      limit:
+        description: '限制处理数量（0=无限制）'
+        type: number
+        default: 3
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate EPUBs
+        id: gen
+        env:
+          WENKU8_COOKIE: ${{ secrets.WENKU8_COOKIE }}
+        run: |
+          FORCE_FLAG=""
+          LIMIT_FLAG=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ "${{ inputs.force }}" = "true" ]; then
+              FORCE_FLAG="--force"
+            fi
+            if [ "${{ inputs.limit }}" != "" ] && [ "${{ inputs.limit }}" != "0" ]; then
+              LIMIT_FLAG="--limit ${{ inputs.limit }}"
+            fi
+          else
+            # 定期运行时: 检查最近 3 本
+            LIMIT_FLAG="--limit 3"
+          fi
+          python gen_epub.py $FORCE_FLAG $LIMIT_FLAG
+          echo "epub_count=$(python -c "import json; d=json.load(open('out/epub_summary.json')); print(len(d.get('generated',[])))" 2>/dev/null || echo 0)" >> $GITHUB_OUTPUT
+
+      - name: Upload EPUBs to Release
+        if: steps.gen.outputs.epub_count != '0'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: epub-${{ github.run_id }}
+          name: "EPUBs - ${{ github.event.repository.updated_at || 'auto' }}"
+          body: |
+            ## 📚 自动生成的 EPUB
+
+            **生成时间**: ${{ github.event.head_commit.timestamp || 'auto' }}
+
+            本次共生成 **${{ steps.gen.outputs.epub_count }}** 本 EPUB 小说。
+
+            ### 下载说明
+
+            所有 EPUB 文件可以直接下载使用，兼容 Kindle、Calibre、Apple Books 等阅读器。
+
+            ---
+            *由 GitHub Actions 自动生成*
+          files: out/epub/*.epub
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit state file
+        if: steps.gen.outputs.epub_count != '0'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add out/epub_state.json
+          git diff --staged --quiet || git commit -m "chore: update epub state [skip ci]"
+          git push
+
+      - name: Summary
+        run: |
+          echo "## 📊 EPUB Generation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 项目 | 值 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| 生成数量 | ${{ steps.gen.outputs.epub_count }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Release Tag | \`epub-${{ github.run_id }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[查看 Releases](${{ github.server_url }}/${{ github.repository }}/releases)" >> $GITHUB_STEP_SUMMARY

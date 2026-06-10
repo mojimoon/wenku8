@@ -25,13 +25,10 @@ jobs:
 
     - name: Install dependencies
       run: |
-        if [ -f "requirements.txt" ]; then
-          pip install -r requirements.txt
-        fi
+        pip install -r requirements.txt
 
     - name: Install Playwright browsers
       run: |
-        pip install playwright
         python -m playwright install --with-deps
 
     - name: Setup secrets

@@ -17,6 +17,7 @@ BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
 params = { 'keyword': '8691', 'charset': 'utf-8', 'page': 1 }
 # 'requests' | 'playwright' | 'steel'
 _scraper = 'steel'
+_timeout = 40
 user_agents = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'
@@ -109,7 +110,7 @@ def init_steel():
     global browser, playwright_ctx_cookie_dict, steel_dict
     steel_api_key = dotenv_values().get('STEEL_API_KEY', '')
     client = Steel(steel_api_key=steel_api_key)
-    steel_session = client.sessions.create(api_timeout=600000)
+    steel_session = client.sessions.create(api_timeout=_timeout * 1000)
     print(f'[INFO] Running Steel session: {steel_session.id}')
     steel_dict = {
         'api_key': steel_api_key,
@@ -582,5 +583,6 @@ def main():
 if __name__ == '__main__':
     if len(sys.argv) > 1:
         _scraper = sys.argv[1]
-        print(f'[INFO] Using scraper: {_scraper}')
+    if len(sys.argv) > 2:
+        _timeout = int(sys.argv[2])
     main()

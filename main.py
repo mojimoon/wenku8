@@ -32,7 +32,7 @@ HEADERS = {
     'Referer': 'https://www.wenku8.net/',
 }
 DOMAIN = 'https://www.wenku8.net'
-JSDELIVR_CDN = 'https://gcore.jsdelivr.net/gh/mojimoon/wenku8@gh-pages/'
+JSDELIVR_CDN = 'https://gcore.jsdelivr.net/gh/mojimoon/wenku8@main/docs/'
 OUT_DIR = 'out'
 PUBLIC_DIR = 'docs'
 COOKIE_FILE = os.path.join(os.path.dirname(__file__), 'COOKIE')

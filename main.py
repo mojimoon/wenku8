@@ -109,7 +109,7 @@ def init_steel():
     global browser, playwright_ctx_cookie_dict, steel_dict
     steel_api_key = dotenv_values().get('STEEL_API_KEY', '')
     client = Steel(steel_api_key=steel_api_key)
-    steel_session = client.sessions.create(api_timeout=40000)
+    steel_session = client.sessions.create(api_timeout=600000)
     print(f'[INFO] Running Steel session: {steel_session.id}')
     steel_dict = {
         'api_key': steel_api_key,
@@ -211,22 +211,20 @@ def get_latest_url(post_link: str):
     return link
 
 def get_latest(url: str):
-    txt = scrape_page(url)
+    # txt = scrape_page(url)
+    import subprocess
+    try:
+        result = subprocess.run(['curl', '-s', url], capture_output=True, timeout=10)
+        if result.returncode != 0:
+            raise ValueError(f"[ERROR] curl failed with return code {result.returncode}")
+        raw = result.stdout
+    except Exception as e:
+        raise ValueError(f"[ERROR] curl command failed: {e}")
+    try:
+        txt = raw.decode('utf-8')
+    except UnicodeDecodeError:
+        txt = raw.decode('utf-8', errors='replace')
     lines = txt.split('\n')
-    flg = [False] * 4
-    for i in range(len(lines)):
-        if not flg[0] and lines[i].endswith('_杂志连载版'):
-            lines[i] = lines[i].replace('_杂志连载版', '')
-            flg[0] = True
-        elif not flg[1] and lines[i].endswith('_SS'):
-            lines[i] = lines[i].replace('_SS', '')
-            flg[1] = True
-        elif not flg[2] and lines[i].endswith('-Ordinary_days-'):
-            lines[i] = lines[i].replace('-Ordinary_days-', ' 莉可丽丝 Ordinary days')
-            flg[2] = True
-        elif not flg[3] and lines[i].endswith('君若星辰'):
-            lines[i] = lines[i].replace('君若星辰', '宛如星辰的你')
-            flg[3] = True
     
     txt = '\n'.join(lines)
     # if the content has not changed, exit
@@ -249,7 +247,6 @@ def parse_page(page_num: int, latest_post_link: str = None):
     table = soup.find_all('table', class_='grid')[1]
     rows = table.find_all('tr')[1:]  # skip header row
 
-    flg = [False] * 2
     entries = []
     for (i, tr) in enumerate(rows):
         cols = tr.find_all('td')
@@ -269,12 +266,6 @@ def parse_page(page_num: int, latest_post_link: str = None):
         a_novel = cols[1].find('a')
         novel_title = a_novel.text.strip()
         novel_link = urljoin(DOMAIN, a_novel['href'])
-        if not flg[0] and novel_link.endswith('/2751.htm'):
-            novel_title = '我们不可能成为恋人！绝对不行。（※似乎可行？）(我怎么可能成为你的恋人，不行不行！)'
-            flg[0] = True
-        if not flg[1] and novel_link.endswith('/3828.htm'):
-            novel_title = 'Tier1姐妹 有名四姐妹没我就活不下去'
-            flg[1] = True
 
         post_title = '"' + post_title + '"'
         novel_title = '"' + novel_title + '"'

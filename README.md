@@ -40,7 +40,7 @@ pip install -r requirements.txt
 
 ```bash
 pip install pytest-playwright
-playwright install
+playwright install # 或 python -m playwright install
 ```
 
 如需使用 `steel`，还需在项目根目录创建 `.env` 文件，内容如下：

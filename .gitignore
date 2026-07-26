@@ -2,6 +2,7 @@ __pycache__/
 
 .env
 COOKIE
+COOKIE.bak
 
 *.log
 last_success_date.txt

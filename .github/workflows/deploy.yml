@@ -1,49 +1,40 @@
-name: Scrape and Deploy
+name: Deploy Pages
 
+# 手动 push 到 main 时：直接部署 docs/ 下的网页，不运行爬虫
 on:
   push:
     branches:
       - main
-  schedule:
-    - cron: '30 4-23/12 * * *'
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
+
+# 与 scrape.yml 共用 pages 并发组，避免两个部署互相覆盖
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.x'
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
 
-    - name: Install dependencies
-      run: |
-        pip install -r requirements.txt
+      - name: Upload docs as Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/
 
-    - name: Install Playwright browsers
-      run: |
-        python -m playwright install --with-deps
-
-    - name: Setup secrets
-      run: |
-        echo "${{ secrets.WENKU_COOKIES }}" > COOKIE
-        echo "STEEL_API_KEY=${{ secrets.STEEL_API_KEY }}" > .env
-    
-    - name: Run main.py
-      run: |
-        python main.py
-
-    - name: Commit CSV and pages to main
-      run: |
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add out/ docs/
-        git diff --staged --quiet || git commit -m "chore: update scraped data and pages [skip ci]"
-        git push
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

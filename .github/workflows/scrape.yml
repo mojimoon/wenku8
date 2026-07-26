@@ -1,0 +1,72 @@
+name: Scrape and Update
+
+# 计划任务：运行爬虫，将 out/ 和 docs/ 的更改回推到 main，并部署 docs/ 网页
+on:
+  schedule:
+    - cron: '30 4-23/12 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+# 与 deploy.yml 共用 pages 并发组，避免两个部署互相覆盖
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  scrape-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Install Playwright browsers
+        run: |
+          python -m playwright install --with-deps
+
+      - name: Setup secrets
+        run: |
+          echo "${{ secrets.WENKU_COOKIES }}" > COOKIE
+          echo "STEEL_API_KEY=${{ secrets.STEEL_API_KEY }}" > .env
+
+      - name: Run main.py
+        run: |
+          python main.py
+
+      - name: Commit CSV and pages to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add out/ docs/
+          git diff --staged --quiet || git commit -m "chore: update scraped data and pages [skip ci]"
+          git push
+
+      # 注意：上一步用 GITHUB_TOKEN 推送的 commit 不会再触发 deploy.yml
+      # （GitHub 防止 workflow 无限循环的机制），所以这里必须自己完成部署
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload docs as Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

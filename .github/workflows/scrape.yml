@@ -51,10 +51,10 @@ jobs:
 
       - name: Commit CSV and pages to main
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "mojimoon"
+          git config user.email "109803649+mojimoon@users.noreply.github.com"
           git add out/ docs/
-          git diff --staged --quiet || git commit -m "chore: update scraped data and pages [skip ci]"
+          git diff --staged --quiet || git commit -m "chore: auto update on $(date +'%Y-%m-%d %H:%M:%S') [skip ci]"
           git push
 
       # 注意：上一步用 GITHUB_TOKEN 推送的 commit 不会再触发 deploy.yml

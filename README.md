@@ -18,7 +18,13 @@ An automated crawler and static site generator for light novel ebooks from [轻�
 
 **如果您觉得这个项目有用，点个 Star 支持一下吧！Thanks! 😊**
 
-[![Star History Chart](https://api.star-history.com/svg?repos=mojimoon/wenku8&type=Date)](https://www.star-history.com/#mojimoon/wenku8&Date)
+<a href="https://www.star-history.com/?repos=mojimoon%2Fwenku8&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=mojimoon/wenku8&type=date&theme=dark&legend=top-left&sealed_token=645APGfetPVmFND5Ebj4ovOk1jxf-x7-73GapGzveUHVEhD-oenGojbx_g7ovL37eepDvMjCeKI2-DwVmzLW2ERhDOGDaBNt7RYA429XZ3akAIr1Xds6ctNi7of0jfTbduf1FNoNI2wk1b7uAIA2qTmcU_4e0pPx7UK4bhXBVjOXV-Du5BcQEI3O_hWc" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=mojimoon/wenku8&type=date&legend=top-left&sealed_token=645APGfetPVmFND5Ebj4ovOk1jxf-x7-73GapGzveUHVEhD-oenGojbx_g7ovL37eepDvMjCeKI2-DwVmzLW2ERhDOGDaBNt7RYA429XZ3akAIr1Xds6ctNi7of0jfTbduf1FNoNI2wk1b7uAIA2qTmcU_4e0pPx7UK4bhXBVjOXV-Du5BcQEI3O_hWc" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=mojimoon/wenku8&type=date&legend=top-left&sealed_token=645APGfetPVmFND5Ebj4ovOk1jxf-x7-73GapGzveUHVEhD-oenGojbx_g7ovL37eepDvMjCeKI2-DwVmzLW2ERhDOGDaBNt7RYA429XZ3akAIr1Xds6ctNi7of0jfTbduf1FNoNI2wk1b7uAIA2qTmcU_4e0pPx7UK4bhXBVjOXV-Du5BcQEI3O_hWc" />
+ </picture>
+</a>
 
 ## Usage
 

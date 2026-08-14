@@ -1,17 +1,17 @@
-# 轻小说文库 EPUB 下载
+# 轻小说文库 EPUB 下载 - [wenku.mojimoon.top](https://wenku.mojimoon.top)
 
-An automated crawler and static site generator for light novel ebooks from [轻小说文库](https://www.wenku8.net), featuring multiple download sources, daily updates, and GitHub Actions deployment with [Steel](https://steel.dev).
+An automated crawler and static site generator for light novel ebooks from [轻小说文库](https://www.wenku8.net), featuring multiple download sources, daily updates, and GitHub Actions deployment with [Steel](https://steel.dev). 
 
 ---
 
-[![Scrape and Deploy](https://github.com/mojimoon/wenku8/actions/workflows/deploy.yml/badge.svg)](https://github.com/mojimoon/wenku8/actions/workflows/deploy.yml)
+[![Deploy](https://github.com/mojimoon/wenku8/actions/workflows/deploy.yml/badge.svg)](https://github.com/mojimoon/wenku8/actions/workflows/deploy.yml) [![Scrape and Update](https://github.com/mojimoon/wenku8/actions/workflows/scrape.yml/badge.svg)](https://github.com/mojimoon/wenku8/actions/workflows/scrape.yml)
 
 自动化从 [轻小说文库](https://www.wenku8.net) 获取 EPUB 格式电子书，并将结果整合为网页呈现：
 
-- [mojimoon.github.io/wenku8](https://mojimoon.github.io/wenku8/index.html)：EPUB 源 + TXT 源
+- [wenku.mojimoon.top](https://wenku.mojimoon.top)：EPUB 源 + TXT 源
     - 内容全面，但条目数多，可能加载较慢
     - 特别感谢 [布客新知](https://github.com/ixinzhi) 整理 
-- [mojimoon.github.io/wenku8/epub.html](https://mojimoon.github.io/wenku8/epub.html)：EPUB 源
+- [wenku.mojimoon.top/epub.html](https://wenku.mojimoon.top/epub.html)：EPUB 源
     - 仅包含 EPUB 源，适合移动端浏览
 
 ## Star History

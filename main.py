@@ -33,7 +33,9 @@ HEADERS = {
     'Referer': 'https://www.wenku8.net/',
 }
 DOMAIN = 'https://www.wenku8.net'
-JSDELIVR_CDN = 'https://cdn.jsdmirror.com/gh/mojimoon/wenku8@main/docs/'
+CDN_PREFIX = 'https://cdn.jsdmirror.com/gh/mojimoon/'
+JSDELIVR_CDN = f'{CDN_PREFIX}wenku8@main/docs/'
+FAVICON = f'{CDN_PREFIX}mojimoon.github.io@v2/favicon.svg'
 OUT_DIR = 'out'
 PUBLIC_DIR = 'docs'
 COOKIE_FILE = os.path.join(os.path.dirname(__file__), 'COOKIE')
@@ -501,6 +503,7 @@ def create_html_merged():
         '<meta name="keywords"content="轻小说,sf轻小说,dmzj轻小说,日本轻小说,动漫小说,轻小说电子书,轻小说EPUB下载">'
         '<meta name="description"content="轻小说文库 EPUB 下载，支持搜索关键字、跳转至源站和蓝奏云下载，已进行移动端适配。">'
         '<meta name="author"content="mojimoon"><title>轻小说文库 EPUB 下载+</title>'
+        f'<link rel="icon" type="image/svg+xml" href="{FAVICON}">'
         f'<link rel="stylesheet"href="{JSDELIVR_CDN}style.css"></head><body>'
         '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载+</h1>'
         f'<h4>({today}) <a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {starme}</h4>'
@@ -550,6 +553,7 @@ def create_html_epub():
         '<meta name="keywords"content="轻小说,sf轻小说,dmzj轻小说,日本轻小说,动漫小说,轻小说电子书,轻小说EPUB下载">'
         '<meta name="description"content="轻小说文库 EPUB 下载，支持搜索关键字、跳转至源站和蓝奏云下载，已进行移动端适配。">'
         '<meta name="author"content="mojimoon"><title>轻小说文库 EPUB 下载</title>'
+        f'<link rel="icon" type="image/svg+xml" href="{FAVICON}">'
         f'<link rel="stylesheet"href="{JSDELIVR_CDN}style.css"></head><body>'
         '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载</h1>'
         f'<h4>({today}) <a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {starme}</h4>'

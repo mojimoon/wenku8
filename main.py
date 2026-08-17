@@ -47,11 +47,6 @@ MERGED_CSV = os.path.join(OUT_DIR, 'merged.csv')
 EPUB_HTML = os.path.join(PUBLIC_DIR, 'epub.html')
 MERGED_HTML = os.path.join(PUBLIC_DIR, 'index.html')
 
-BUTTONS_CDN = f'{CDN_PREFIX}buttons/github-buttons@v2.33.0/dist/buttons.min.js'
-BUTTONS_HTML = """
-<a class="github-button" href="https://github.com/mojimoon/wenku8" data-color-scheme="no-preference: light; light: light; dark: dark;" data-icon="octicon-star" data-size="large" data-show-count="true" aria-label="Star mojimoon/wenku8 on GitHub">Star</a>
-"""
-
 retry_strategy = Retry(
     total=5,
     status_forcelist=[500, 502, 503, 504],
@@ -477,7 +472,12 @@ def merge():
     df_txt.to_csv(MERGED_CSV, index=False, encoding='utf-8-sig')
 
 # ========== HTML Generation ==========
-# starme = '<iframe style="margin-left: 2px; margin-bottom:-5px;" frameborder="0" scrolling="0" width="81px" height="20px" src="https://ghbtns.com/github-btn.html?user=mojimoon&repo=wenku8&type=star&count=true" ></iframe>'
+# STARME = '<iframe style="margin-left: 2px; margin-bottom:-5px;" frameborder="0" scrolling="0" width="81px" height="20px" src="https://ghbtns.com/github-btn.html?user=mojimoon&repo=wenku8&type=star&count=true" ></iframe>'
+SHIELDS = '<a href="https://github.com/mojimoon/wenku8" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/github/stars/mojimoon/wenku8?style=social" alt="GitHub stars" style="height: 20px;" /></a>'
+
+BUTTONS_CDN = f'{CDN_PREFIX}buttons/github-buttons@v2.33.0/dist/buttons.min.js' # async defer
+BUTTONS_HTML = '<a class="github-button" href="https://github.com/mojimoon/wenku8" data-color-scheme="no-preference: light; light: light; dark: dark;" data-icon="octicon-star" data-size="large" data-show-count="true" aria-label="Star mojimoon/wenku8 on GitHub">Star</a>'
+
 def create_table_merged(df):
     rows = []
     for _, row in df.iterrows():
@@ -512,7 +512,7 @@ def create_html_merged():
         f'<link rel="icon" type="image/svg+xml" href="{FAVICON}">'
         f'<link rel="stylesheet"href="{TAG_CDN}style.css"></head><body>'
         '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载+</h1>'
-        f'<h4>({today}) <a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {BUTTONS_HTML}</h4>'
+        f'<h4>({today}) <a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {SHIELDS}</h4>'
         '<span>所有内容均收集于网络，仅供学习交流使用。'
         '特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=utf-8">酷儿加冰</a> 和 <a href="https://github.com/ixinzhi">布客新知</a> 整理。</span>'
         '<span class="at">最新为 Calibre 生成 EPUB，括号内为最新卷数；年更为纯文本 EPUB。</span>'
@@ -525,7 +525,7 @@ def create_html_merged():
         '<table><thead><tr><th>标题</th><th>作者</th><th>最新</th><th>密码</th><th>年更</th><th>更新</th></tr>'
         '</thead><tbody id="novelTableBody">'
         f'{table}</tbody></table>'
-        f'<script src="{TAG_CDN}script_merged.js"></script><script async defer src="{BUTTONS_CDN}"></script>'
+        f'<script src="{TAG_CDN}script_merged.js"></script>'
         '</body></html>'
     )
     with open(MERGED_HTML, 'w', encoding='utf-8') as f:
@@ -563,7 +563,7 @@ def create_html_epub():
         f'<link rel="icon" type="image/svg+xml" href="{FAVICON}">'
         f'<link rel="stylesheet"href="{TAG_CDN}style.css"></head><body>'
         '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载</h1>'
-        f'<h4>({today}) <a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {BUTTONS_HTML}</h4>'
+        f'<h4>({today}) <a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {STARME}</h4>'
         '<span>所有内容均收集于网络，仅供学习交流使用。'
         '特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=utf-8">酷儿加冰</a> 整理。括号内为最新卷数。</span>'
         '<div class="right-controls"><a href="./index.html">'
@@ -575,7 +575,7 @@ def create_html_epub():
         '<table><thead><tr><th>标题</th><th>作者</th><th>蓝奏</th><th>密码</th><th>更新</th></tr>'
         '</thead><tbody id="novelTableBody">'
         f'{table}</tbody></table>'
-        f'<script src="{TAG_CDN}script_merged.js"></script><script async defer src="{BUTTONS_CDN}"></script>'
+        f'<script src="{TAG_CDN}script_merged.js"></script>'
         '</body></html>'
     )
     with open(EPUB_HTML, 'w', encoding='utf-8') as f:

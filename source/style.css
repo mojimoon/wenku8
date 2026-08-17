@@ -61,21 +61,21 @@ h4 {
     background-color: #218838;
 }
 
-#randomButton {
+#randomButton,#gotoButton {
     background-color: #007bff;
 }
 
-#randomButton:hover {
+#randomButton:hover,#gotoButton:hover {
     background-color: #0056b3;
 }
 
-#gotoButton {
+/* #gotoButton {
     background-color: #da70d6;
 }
 
 #gotoButton:hover {
     background-color: #c95b9e;
-}
+} */
 
 #clearInput {
     background-color: #333;
@@ -214,20 +214,19 @@ body.dark-mode #themeToggle:hover {
     background-color: #2a7b3c;
 }
 
-body.dark-mode #gotoButton {
+/* body.dark-mode #gotoButton {
     background-color: #6750a4;
-    /* color: #eaddff; */
 }
 
 body.dark-mode #gotoButton:hover {
     background-color: #543e87;
-}
+} */
 
-body.dark-mode #randomButton {
+body.dark-mode #randomButton,body.dark-mode #gotoButton {
     background-color: #0056b3;
 }
 
-body.dark-mode #randomButton:hover {
+body.dark-mode #randomButton:hover,body.dark-mode #gotoButton:hover {
     background-color: #004494;
 }
 

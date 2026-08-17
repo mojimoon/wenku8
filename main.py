@@ -33,9 +33,9 @@ HEADERS = {
     'Referer': 'https://www.wenku8.net/',
 }
 DOMAIN = 'https://www.wenku8.net'
-CDN_PREFIX = 'https://cdn.jsdmirror.com/gh/mojimoon/'
-JSDELIVR_CDN = f'{CDN_PREFIX}wenku8@main/docs/'
-FAVICON = f'{CDN_PREFIX}mojimoon.github.io@v2/favicon.svg'
+CDN_PREFIX = 'https://cdn.jsdmirror.com/gh/'
+JSDELIVR_CDN = f'{CDN_PREFIX}mojimoon/wenku8@main/docs/'
+FAVICON = f'{CDN_PREFIX}mojimoon/mojimoon.github.io@v3/favicon.svg'
 OUT_DIR = 'out'
 PUBLIC_DIR = 'docs'
 COOKIE_FILE = os.path.join(os.path.dirname(__file__), 'COOKIE')
@@ -45,6 +45,10 @@ DL_FILE = os.path.join(OUT_DIR, 'dl.txt')
 MERGED_CSV = os.path.join(OUT_DIR, 'merged.csv')
 EPUB_HTML = os.path.join(PUBLIC_DIR, 'epub.html')
 MERGED_HTML = os.path.join(PUBLIC_DIR, 'index.html')
+
+STAR_BUTTON_HTML = """
+<a class="github-button" href="https://github.com/mojimoon/wenku8" data-color-scheme="no-preference: light; light: light; dark: dark;" data-icon="octicon-star" data-size="large" data-show-count="true" aria-label="Star mojimoon/wenku8 on GitHub">Star</a>
+"""
 
 retry_strategy = Retry(
     total=5,

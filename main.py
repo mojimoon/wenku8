@@ -15,7 +15,7 @@ import sys
 
 BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
 params = { 'keyword': '8691', 'charset': 'utf-8', 'page': 1 }
-# 'requests' | 'playwright' | 'steel'
+# 'requests' | 'playwright' | 'steel' | 'none'
 _scraper = 'steel'
 _timeout = 40
 user_agents = [
@@ -285,6 +285,10 @@ def parse_page(page_num: int, latest_post_link: str = None):
     return entries, False
 
 def scrape():
+    if _scraper == 'none':
+        print('[INFO] Skipping scraping.')
+        return
+
     # 获取POST_LIST_FILE中第一个post_link
     latest_post_link = None
     try:
@@ -371,9 +375,16 @@ def replace_chinese_numerals(s: str) -> str:
         s = s.replace(' 卷', '')
     return s
 
+_prefix = ''
 IGNORED_TITLES = ['时间', '少女', '再见宣言', '强袭魔女', '秋之回忆', '秋之回忆2', '魔王', '青梅竹马', '弹珠汽水']
 
 def merge():
+    global _prefix
+    if _scraper == 'none':
+        _prefix = 'wenku8.lanzov.com'
+        print('[INFO] Skipping merge.')
+        return
+    
     df_post = pd.read_csv(POST_LIST_FILE, encoding='utf-8')
     df_post.drop_duplicates(subset=['novel_title'], keep='first', inplace=True)
     df_post.reset_index(drop=True, inplace=True)
@@ -392,10 +403,9 @@ def merge():
 
     # merge dl to post
     with open(DL_FILE, 'r', encoding='utf-8') as f:
-        global _prefix
         _ = f.readlines()
         # <html><head><meta name="color-scheme" content="light dark"></head><body><pre style="word-wrap: break-word; white-space: pre-wrap;"> 网址前缀：wenku8.lanzov.com/
-        _prefix = _[0].split('：')[-1].strip()
+        _prefix = _[0].split('：')[-1].strip() # ends with '/'
         # print(f"[DEBUG] DL prefix: {_prefix}")
         lines = _[2:]
         for line in lines:
@@ -488,7 +498,7 @@ def create_table_merged(df):
         txt_dl = '' if pd.isna(_txt) else f"<a href='{_txt}' target='_blank'>下载</a> <a href='https://ghfast.top/{_txt}' target='_blank'>镜像</a>"
         volume = '' if pd.isna(_v) else f'({_v})'
         remark = '' if pd.isna(_r) else f" <span class='bt'>{_r}</span>"
-        lz_dl = '' if pd.isna(_dll) else f"<a href='https://{_prefix}/{_dll}' target='_blank'>{volume}</a>{remark}"
+        lz_dl = '' if pd.isna(_dll) else f"<a href='https://{_prefix}{_dll}' target='_blank'>{volume}</a>{remark}"
         date = '' if pd.isna(_u) else _u
         author = '' if pd.isna(_at) else _at
         lz_pwd = '' if pd.isna(_dll) else row['dl_pwd']
@@ -563,7 +573,7 @@ def create_html_epub():
         f'<link rel="icon" type="image/svg+xml" href="{FAVICON}">'
         f'<link rel="stylesheet"href="{TAG_CDN}style.css"></head><body>'
         '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载</h1>'
-        f'<h4>({today}) <a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {STARME}</h4>'
+        f'<h4>({today}) <a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {SHIELDS}</h4>'
         '<span>所有内容均收集于网络，仅供学习交流使用。'
         '特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=utf-8">酷儿加冰</a> 整理。括号内为最新卷数。</span>'
         '<div class="right-controls"><a href="./index.html">'

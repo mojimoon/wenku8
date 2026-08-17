@@ -34,7 +34,8 @@ HEADERS = {
 }
 DOMAIN = 'https://www.wenku8.net'
 CDN_PREFIX = 'https://cdn.jsdmirror.com/gh/'
-JSDELIVR_CDN = f'{CDN_PREFIX}mojimoon/wenku8@main/docs/'
+LATEST_CDN = f'{CDN_PREFIX}mojimoon/wenku8@main/docs/'
+TAG_CDN = f'{CDN_PREFIX}mojimoon/wenku8@v1/docs/'
 FAVICON = f'{CDN_PREFIX}mojimoon/mojimoon.github.io@v3/favicon.svg'
 OUT_DIR = 'out'
 PUBLIC_DIR = 'docs'
@@ -46,7 +47,8 @@ MERGED_CSV = os.path.join(OUT_DIR, 'merged.csv')
 EPUB_HTML = os.path.join(PUBLIC_DIR, 'epub.html')
 MERGED_HTML = os.path.join(PUBLIC_DIR, 'index.html')
 
-STAR_BUTTON_HTML = """
+BUTTONS_CDN = f'{CDN_PREFIX}buttons/github-buttons@v2.33.0/dist/buttons.min.js'
+BUTTONS_HTML = """
 <a class="github-button" href="https://github.com/mojimoon/wenku8" data-color-scheme="no-preference: light; light: light; dark: dark;" data-icon="octicon-star" data-size="large" data-show-count="true" aria-label="Star mojimoon/wenku8 on GitHub">Star</a>
 """
 
@@ -475,7 +477,7 @@ def merge():
     df_txt.to_csv(MERGED_CSV, index=False, encoding='utf-8-sig')
 
 # ========== HTML Generation ==========
-starme = '<iframe style="margin-left: 2px; margin-bottom:-5px;" frameborder="0" scrolling="0" width="81px" height="20px" src="https://ghbtns.com/github-btn.html?user=mojimoon&repo=wenku8&type=star&count=true" ></iframe>'
+# starme = '<iframe style="margin-left: 2px; margin-bottom:-5px;" frameborder="0" scrolling="0" width="81px" height="20px" src="https://ghbtns.com/github-btn.html?user=mojimoon&repo=wenku8&type=star&count=true" ></iframe>'
 def create_table_merged(df):
     rows = []
     for _, row in df.iterrows():
@@ -508,9 +510,9 @@ def create_html_merged():
         '<meta name="description"content="轻小说文库 EPUB 下载，支持搜索关键字、跳转至源站和蓝奏云下载，已进行移动端适配。">'
         '<meta name="author"content="mojimoon"><title>轻小说文库 EPUB 下载+</title>'
         f'<link rel="icon" type="image/svg+xml" href="{FAVICON}">'
-        f'<link rel="stylesheet"href="{JSDELIVR_CDN}style.css"></head><body>'
+        f'<link rel="stylesheet"href="{TAG_CDN}style.css"></head><body>'
         '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载+</h1>'
-        f'<h4>({today}) <a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {starme}</h4>'
+        f'<h4>({today}) <a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {BUTTONS_HTML}</h4>'
         '<span>所有内容均收集于网络，仅供学习交流使用。'
         '特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=utf-8">酷儿加冰</a> 和 <a href="https://github.com/ixinzhi">布客新知</a> 整理。</span>'
         '<span class="at">最新为 Calibre 生成 EPUB，括号内为最新卷数；年更为纯文本 EPUB。</span>'
@@ -522,7 +524,8 @@ def create_html_merged():
         '<button class="btn"id="randomButton">随机</button></div>'
         '<table><thead><tr><th>标题</th><th>作者</th><th>最新</th><th>密码</th><th>年更</th><th>更新</th></tr>'
         '</thead><tbody id="novelTableBody">'
-        f'{table}</tbody></table><script src="{JSDELIVR_CDN}script_merged.js"></script>'
+        f'{table}</tbody></table>'
+        f'<script src="{TAG_CDN}script_merged.js"></script><script async defer src="{BUTTONS_CDN}"></script>'
         '</body></html>'
     )
     with open(MERGED_HTML, 'w', encoding='utf-8') as f:
@@ -558,9 +561,9 @@ def create_html_epub():
         '<meta name="description"content="轻小说文库 EPUB 下载，支持搜索关键字、跳转至源站和蓝奏云下载，已进行移动端适配。">'
         '<meta name="author"content="mojimoon"><title>轻小说文库 EPUB 下载</title>'
         f'<link rel="icon" type="image/svg+xml" href="{FAVICON}">'
-        f'<link rel="stylesheet"href="{JSDELIVR_CDN}style.css"></head><body>'
+        f'<link rel="stylesheet"href="{TAG_CDN}style.css"></head><body>'
         '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载</h1>'
-        f'<h4>({today}) <a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {starme}</h4>'
+        f'<h4>({today}) <a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {BUTTONS_HTML}</h4>'
         '<span>所有内容均收集于网络，仅供学习交流使用。'
         '特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=utf-8">酷儿加冰</a> 整理。括号内为最新卷数。</span>'
         '<div class="right-controls"><a href="./index.html">'
@@ -571,7 +574,8 @@ def create_html_epub():
         '<button class="btn"id="randomButton">随机</button></div>'
         '<table><thead><tr><th>标题</th><th>作者</th><th>蓝奏</th><th>密码</th><th>更新</th></tr>'
         '</thead><tbody id="novelTableBody">'
-        f'{table}</tbody></table><script src="{JSDELIVR_CDN}script_merged.js"></script>'
+        f'{table}</tbody></table>'
+        f'<script src="{TAG_CDN}script_merged.js"></script><script async defer src="{BUTTONS_CDN}"></script>'
         '</body></html>'
     )
     with open(EPUB_HTML, 'w', encoding='utf-8') as f:

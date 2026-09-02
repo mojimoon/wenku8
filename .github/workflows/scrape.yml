@@ -3,7 +3,7 @@ name: Scrape and Update
 # 计划任务：运行爬虫，将 out/ 和 docs/ 的更改回推到 main，并部署 docs/ 网页
 on:
   schedule:
-    - cron: '30 12 * * *'
+    - cron: '30 8 * * *'
   workflow_dispatch:
 
 permissions:

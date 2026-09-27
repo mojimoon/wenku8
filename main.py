@@ -17,7 +17,7 @@ BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
 params = { 'keyword': '8691', 'charset': 'utf-8', 'page': 1 }
 # 'requests' | 'playwright' | 'steel' | 'none'
 _scraper = 'steel'
-_timeout = 40
+_timeout = 300  # Steel 会话最长存活秒数（结束时会主动 release，不会白白计费）
 user_agents = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'
@@ -242,7 +242,11 @@ def get_latest(url: str):
     with open(DL_FILE, 'w', encoding='utf-8') as f:
         f.write(txt)
 
-def parse_page(page_num: int, latest_post_link: str = None):
+def get_rid(post_link: str) -> int:
+    match = re.search(r'rid=(\d+)', post_link)
+    return int(match.group(1)) if match else 0
+
+def parse_page(page_num: int, known_links: set = None, max_known_rid: int = 0):
     params['page'] = page_num
     url = build_url_with_params(BASE_URL, params)
     txt = scrape_page(url)
@@ -263,9 +267,12 @@ def parse_page(page_num: int, latest_post_link: str = None):
         post_title = raw_title[:-5] if raw_title.endswith(' epub') else raw_title
         post_link = a_post['href'] if a_post['href'].startswith('http') else urljoin(DOMAIN, a_post['href'])
 
-        # 检查是否解析到已存在的最新帖子
-        if latest_post_link is not None and post_link == latest_post_link:
+        # 列表按 rid 降序：遇到不比已知最大 rid 新的帖子即停止
+        # （不能只匹配单个最新链接，该帖子被删除后会永远匹配不到，导致全量爬取）
+        if max_known_rid and get_rid(post_link) <= max_known_rid:
             return entries, True  # 返回当前已收集的entries，并标记停止
+        if known_links and post_link in known_links:
+            continue
 
         a_novel = cols[1].find('a')
         novel_title = a_novel.text.strip()
@@ -289,41 +296,47 @@ def scrape():
         print('[INFO] Skipping scraping.')
         return
 
-    # 获取POST_LIST_FILE中第一个post_link
-    latest_post_link = None
+    # 读取POST_LIST_FILE中所有已知的post_link
+    known_links = set()
     try:
-        with open(POST_LIST_FILE, 'r', encoding='utf-8') as f:
-            next(f)  # skip header
-            first_line = next(f, '').strip()
-            if first_line:
-                latest_post_link = first_line.split(',')[1]
+        with open(POST_LIST_FILE, 'r', encoding='utf-8', newline='') as f:
+            reader = csv.reader(f)
+            next(reader, None)  # skip header
+            for row in reader:
+                if len(row) > 1:
+                    known_links.add(row[1])
             file_exists = True
     except FileNotFoundError:
         file_exists = False
+    max_known_rid = max((get_rid(link) for link in known_links), default=0)
+    print(f'[INFO] known posts: {len(known_links)}, max rid: {max_known_rid}')
 
     all_entries = []
     stop = False
 
-    # 先爬第一页
-    print('[INFO] scrape (1)')
-    entries, found = parse_page(1, latest_post_link)
-    all_entries.extend(entries)
-    stop = found
-
-    # 继续爬剩余页数，直到遇到已存在帖子
-    page = 2
-    while not stop and page <= last_page:
-        print(f'[INFO] scrape ({page}/{last_page})')
-        entries, found = parse_page(page, latest_post_link)
+    try:
+        # 先爬第一页
+        print('[INFO] scrape (1)')
+        entries, found = parse_page(1, known_links, max_known_rid)
         all_entries.extend(entries)
         stop = found
-        if stop:
-            break
-        page += 1
-        time.sleep(random.uniform(1, 3))
-    
-    if _scraper == 'steel':
-        exit_steel() # close Steel session
+
+        # 继续爬剩余页数，直到遇到已存在帖子
+        page = 2
+        while not stop and page <= last_page:
+            print(f'[INFO] scrape ({page}/{last_page})')
+            entries, found = parse_page(page, known_links, max_known_rid)
+            all_entries.extend(entries)
+            stop = found
+            if stop:
+                break
+            page += 1
+            time.sleep(random.uniform(1, 3))
+    finally:
+        # get_latest 中 sys.exit(0) 或异常退出时也要释放 Steel 会话
+        if _scraper == 'steel' and steel_dict is not None:
+            exit_steel() # close Steel session
+    print(f'[INFO] new posts: {len(all_entries)}')
 
     # 新内容在前，拼接后写入
     # with open(POST_LIST_FILE, 'w', encoding='utf-8', newline='') as f:

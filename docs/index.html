@@ -15,9 +15,9 @@ try{var t=localStorage.getItem('theme');if(t)document.documentElement.dataset.th
 </script>
 <style>
 :root{--bg:#f5f6f8;--card:#fff;--fg:#1b1f24;--muted:#6b7280;--line:#e5e7eb;--acc:#2563eb;--acc-fg:#fff;--hover:#f0f4ff;
---c-e:#2563eb;--c-n:#9333ea;--c-t:#4b5563;--shadow:0 1px 2px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.04)}
-@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#111317;--card:#1a1d23;--fg:#e6e8eb;--muted:#9aa3af;--line:#2a2f37;--acc:#6ea0ff;--acc-fg:#0b0d10;--hover:#212733;--c-e:#6ea0ff;--c-n:#c084fc;--c-t:#b4bcc8;--shadow:none}}
-:root[data-theme=dark]{--bg:#111317;--card:#1a1d23;--fg:#e6e8eb;--muted:#9aa3af;--line:#2a2f37;--acc:#6ea0ff;--acc-fg:#0b0d10;--hover:#212733;--c-e:#6ea0ff;--c-n:#c084fc;--c-t:#b4bcc8;--shadow:none}
+--c-e:#2563eb;--c-n:#9333ea;--c-k:#c2410c;--c-t:#4b5563;--shadow:0 1px 2px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.04)}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#111317;--card:#1a1d23;--fg:#e6e8eb;--muted:#9aa3af;--line:#2a2f37;--acc:#6ea0ff;--acc-fg:#0b0d10;--hover:#212733;--c-e:#6ea0ff;--c-n:#c084fc;--c-k:#fb923c;--c-t:#b4bcc8;--shadow:none}}
+:root[data-theme=dark]{--bg:#111317;--card:#1a1d23;--fg:#e6e8eb;--muted:#9aa3af;--line:#2a2f37;--acc:#6ea0ff;--acc-fg:#0b0d10;--hover:#212733;--c-e:#6ea0ff;--c-n:#c084fc;--c-k:#fb923c;--c-t:#b4bcc8;--shadow:none}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
@@ -74,7 +74,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .rr{display:flex;align-items:center;gap:6px;flex:none}
 .rh{background:var(--hover);font-size:.85rem;font-weight:600}
 .p{display:inline-block;font-style:normal;font-weight:400;font-size:.7rem;line-height:1;padding:3px 6px;margin-right:4px;border-radius:4px;border:1px solid currentColor;vertical-align:1px;white-space:nowrap}
-.p.e{color:var(--c-e)}.p.n{color:var(--c-n)}.p.t{color:var(--c-t)}.p.m{color:var(--muted)}
+.p.e{color:var(--c-e)}.p.k{color:var(--c-k)}.p.n{color:var(--c-n)}.p.t{color:var(--c-t)}.p.m{color:var(--muted)}
 .btn{display:inline-flex;align-items:center;justify-content:center;height:32px;padding:0 12px;line-height:1;border-radius:8px;border:1px solid var(--acc);background:var(--acc);color:var(--acc-fg);font-size:.85rem;cursor:pointer;text-decoration:none!important;white-space:nowrap}
 .btn.o{background:transparent;color:var(--acc)}
 .btn.s{height:28px;padding:0 10px;font-size:.78rem;border-radius:6px}
@@ -88,11 +88,11 @@ details summary{cursor:pointer;padding:10px 12px;font-size:.85rem;font-weight:60
  header{padding-top:12px}
  .ib{height:30px;min-width:30px;padding:0 8px;font-size:.78rem}
  .dt{font-size:.9rem}
- header h1{font-size:.95rem;white-space:nowrap}
+ header h1{font-size:.88rem;white-space:nowrap}
  header{gap:6px 8px}.hr{gap:6px}
  .sub span{display:block}.sub i{display:none}
  .list li{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"m b" "s u";padding:7px 12px;gap:2px 8px}
- .m{grid-area:m}.sb{grid-area:s;display:block;font-size:.76rem}.u{grid-area:u;font-size:.76rem}.b{grid-area:b;min-width:0}.au,.m small{display:none}
+ .m{grid-area:m}.sb{grid-area:s;display:block;font-size:.76rem}.u{grid-area:u;justify-self:end;text-align:right;font-size:.76rem}.b{grid-area:b;min-width:0}.au,.m small{display:none}
  .m b{font-size:.93rem}
  .chip{height:28px;padding:0 9px;font-size:.78rem}
  .r.w{flex-wrap:wrap}.r.w .rr{width:100%;justify-content:flex-end}
@@ -109,7 +109,7 @@ details summary{cursor:pointer;padding:10px 12px;font-size:.85rem;font-weight:60
 <header>
  <h1 id="home">轻小说文库 EPUB 下载</h1>
  <div class="hr">
-  <span class="dt">2026-10-01</span>
+  <span class="dt">2026-10-02</span>
   <a href="https://github.com/mojimoon/wenku8" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/github/stars/mojimoon/wenku8?style=social" alt="GitHub stars" height="20"></a>
   <button class="ib" id="theme" title="切换主题" aria-label="切换主题">◐</button>
  </div>
@@ -245,7 +245,7 @@ function openDlg(it){
  cur=it;var h='',b=it.n&&built[it.n];
  $('dt').innerHTML=esc(it.t)+cp(it.t)+'<small>'+(it.a?esc(it.a)+cp(it.a)+' · ':'')+(it.au?esc(it.au)+cp(it.au)+' · ':'')+esc(it.u||'')+'</small>';
  if(it.l){
-  h+='<div class="sec"><div class="r w"><div class="rl"><i class="p e">EPUB</i>'+(it.r?'<i class="p m">'+esc(it.r)+'</i>':'')+'蓝奏源'+(it.v?'（'+esc(it.v)+'）':'')+'</div>'
+  h+='<div class="sec"><div class="r w"><div class="rl"><i class="p e">蓝奏 EPUB</i>'+(it.r?'<i class="p k">'+esc(it.r)+'</i>':'')+esc(it.v||'')+'</div>'
    +'<div class="rr">'+(it.p?'<span>密码 <code>'+esc(it.p)+'</code>'+cp(it.p)+'</span>':'')+'<button class="btn" data-a="lz">'+(it.p?'复制密码打开':'打开')+'</button></div></div></div>';
  }
  if(b){

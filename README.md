@@ -1,14 +1,28 @@
-# 轻小说文库 EPUB 下载 - [wenku.mojimoon.top](https://wenku.mojimoon.top)：单页展示全部条目，支持搜索、筛选与移动端浏览
-    - **蓝奏 EPUB**：Calibre 生成，来自论坛整理
-    - **重制 EPUB**：对仅有 TXT 源的小说，由 GitHub Actions 从 wenku8 重新抓取生成（含封面、插图、分卷目录），按卷下载
-    - **TXT 源**：纯文本 EPUB（无样式、无插图），特别感谢 [布客新知](https://github.com/ixinzhi) 整理
-    - 所有 GitHub 文件均通过 [gh-proxy.org](https://gh-proxy.org/) 下载
+# 轻小说文库 EPUB 下载 - [wenku.mojimoon.top](https://wenku.mojimoon.top)
+
+An automated crawler and static site generator for light novel ebooks from [轻小说文库](https://www.wenku8.net): multiple download sources, daily updates, on-demand EPUB rebuilding with illustrations, and GitHub Actions deployment.
+
+---
+
+[![Deploy](https://github.com/mojimoon/wenku8/actions/workflows/deploy.yml/badge.svg)](https://github.com/mojimoon/wenku8/actions/workflows/deploy.yml) [![Scrape and Update](https://github.com/mojimoon/wenku8/actions/workflows/scrape.yml/badge.svg)](https://github.com/mojimoon/wenku8/actions/workflows/scrape.yml) [![Build EPUB](https://github.com/mojimoon/wenku8/actions/workflows/build_epub.yml/badge.svg)](https://github.com/mojimoon/wenku8/actions/workflows/build_epub.yml)
+
+![screenshot](img/screenshot.png)
+
+自动化从 [轻小说文库](https://www.wenku8.net) 获取 EPUB 格式电子书，并将结果整合为单页网页 [wenku.mojimoon.top](https://wenku.mojimoon.top)：
+
+- **蓝奏 EPUB**：Calibre 生成，来自论坛整理（括号/卷名为最新卷）。点击按钮会复制密码并打开蓝奏云
+- **TXT 源**：纯文本 EPUB（无样式、无插图），特别感谢 [布客新知](https://github.com/ixinzhi) 整理
+- **重制 EPUB**：对没有蓝奏 EPUB 的小说，由 GitHub Actions 从源站重新抓取生成，含封面、插图、简介和分卷目录，**按卷下载**
+    - 日常批量预生成，也可在详情窗口中「请求生成」：选择插图分辨率、是否含插图、指定卷，提交预填好的 Issue 后由 Actions 自动生成并回复下载链接
+- 搜索书名/别名/作者，按来源筛选；适配手机与深色模式；书名、作者、密码均可一键复制
+- 页面为单个 HTML（数据与样式内联，无外部 CSS/JS），所有 GitHub 文件统一通过 [gh-proxy.org](https://gh-proxy.org/) 下载
+- 旧的 `epub.html` 会跳转到 `index.html?f=epub`
 
 ## Star History
 
 **如果您觉得这个项目有用，点个 Star 支持一下吧！Thanks! 😊**
 
-[![Star History Chart](https://api.star-history.com/chart?repos=mojimoon/wenku8&type=date&legend=top-left)](https://www.star-history.com/?repos=mojimoon%2Fwenku8&type=date&legend=top-left)
+[![Star History Chart](https://api.star-history.com/chart?repos=mojimoon/wenku8&type=date&legend=top-left)](https://www.star-history.com/?repos=mojimoon/wenku8&type=date&legend=top-left)
 
 ## Usage
 
@@ -20,36 +34,44 @@ cd wenku8
 pip install -r requirements.txt
 ```
 
-有 3 种爬虫方式可选：
+### 爬虫方式
 
-- `requests`：在使用境内 IP 时推荐使用
-- `playwright`：在使用境外 IP 时必须使用，能绕过 Cloudflare 验证
-- `steel`：在使用风控 IP（如 GitHub Actions 的服务器）时必须使用 [Steel](https://steel.dev) 平台提供的无头浏览器服务，需注册账号并获取 API Key
+抓取层位于 `utils/fetcher.py`，供所有脚本共用，可通过 `--scraper`（`main.py` 为第一个参数）切换，**失败时按下表顺序自动升级**：
 
-如需使用 `playwright` 或 `steel`，还需安装 Playwright 及其浏览器：
+| 方式 | 说明 |
+| --- | --- |
+| `requests` | 境内/本机 IP 可用（UA 需为简短的 `Mozilla/5.0`，完整浏览器 UA 反而会被 Cloudflare 拦截） |
+| `curl_cffi` | 模拟 Chrome 的 TLS 指纹，**GitHub Actions 上实测可通过**，默认方式，速度快 |
+| `playwright` | 本地 headless Chromium |
+| `steel` | [Steel](https://steel.dev) 云端浏览器，最稳但有额度限制 |
+
+> GitHub Actions 的 IP 会被 Cloudflare 拦截：实测 `curl_cffi`、`patchright`、`camoufox`、Steel、WARP 可通过，普通 `requests` 与有头 Chromium 不行。
+
+如需使用 `playwright` 或 `steel`：
 
 ```bash
-pip install pytest-playwright
-playwright install # 或 python -m playwright install
+python -m playwright install
 ```
 
-如需使用 `steel`，还需在项目根目录创建 `.env` 文件，内容如下：
+`steel` 还需在项目根目录创建 `.env` 文件，填入从 [Steel 控制台](https://app.steel.dev/quickstart) 获取的 API Key：
 
 ```
 STEEL_API_KEY=...
 ```
 
-并填入从 [Steel 控制台](https://app.steel.dev/quickstart) 获取的 API Key。
+### Cookie
 
----
-
-此外，在 wenku8 某次更新后，还需要登录网站来访问论坛内容。为此，你需要在浏览器中登录后，将 `COOKIE` 文件保存到项目根目录。`COOKIE` 的开头如下所示：
+wenku8 需要登录才能访问论坛与部分页面。在浏览器中登录后，将 Cookie 保存为项目根目录的 `COOKIE` 文件（单行），开头如下所示（也可使用环境变量 `WENKU8_COOKIE`）：
 
 ```
 jieqiUserCharset=utf-8; jieqiVisitId=...; ...
 ```
 
+GitHub Actions 中通过 Secrets 提供：`WENKU_COOKIES`（Cookie）、`STEEL_API_KEY`（可选）。
+
 ## Workflow
+
+### 页面数据（`txt.py` → `main.py`）
 
 运行 `txt.py`：
 
@@ -59,30 +81,49 @@ jieqiUserCharset=utf-8; jieqiVisitId=...; ...
 - `merge_csv()` 合并、去重
     - 输出：`out/txt_list.csv`
 
-运行 `main.py`：
+运行 `main.py [scraper]`：
 
 - `scrape()` 获取最新的 EPUB 源下载列表
     - 输出：`out/dl.txt`, `out/post_list.csv`
-- `merge()` 合并、去重并与 TXT 源进行匹配
+- `merge()` 合并、去重并与 TXT 源进行匹配（保留卷名原称与完整注释）
     - 输出：`out/merged.csv`
-- `create_html_merged(), create_html_epub()` 生成 HTML 文件
-    - 输出：`public/index.html`, `public/epub.html`
+- `create_html()` 以 `source/template.html` 为模板，嵌入数据生成单页
+    - 输出：`docs/index.html`、`docs/epub.html`（跳转页）
+    - 数据来源：`out/merged.csv`、`out/txt_meta.csv`（补全 aid）、`out/wenku_catalog.json`（补全作者）、`out/epub_index.json`（已生成的重制版）
 
-`fill_meta.py`（低频，一次性）：为仅有 TXT 源的小说补全 wenku8 的 aid 与元数据，输出 `out/txt_meta.csv`。
+`scrape.yml` 每天自动运行 `main.py`，将 `out/`、`docs/` 提交到 `main` 并部署到 GitHub Pages；`deploy.yml` 在手动推送到 `main` 时直接部署 `docs/`。
 
-`build_batch.py` / `gen_epub.py`（见 `.github/workflows/build_epub.yml`）：为这些小说按卷生成带插图的 EPUB 并上传到 Release（`epub-NN`），状态记录在 `out/epub_index.json`；仅当 TXT 源更新时才会重新生成。
-本地单本测试：`python gen_epub.py --aid 129`（整本）或 `--split`（按卷）。
+### 仅有 TXT 源的小说：补全元数据（`fill_meta.py`，低频）
 
-抓取层在 `utils/fetcher.py`，可切换方式：`requests` / `curl_cffi` / `playwright` / `steel`（`python main.py [scraper]`，默认 `curl_cffi`，失败自动升级）。
-GitHub Actions 的 IP 会被 Cloudflare 拦截，实测 `curl_cffi`、`patchright`、`camoufox`、Steel、WARP 可通过，普通 `requests` 与有头 Chromium 不行。
+抓取 wenku8 全站目录（`out/wenku_catalog.json`），与 TXT 源按「书名 + 作者」匹配，得到 aid 与元数据（`out/txt_meta.csv`），未匹配的在 `out/txt_unmatched.csv`。每一步均可断点继续。
 
-此外，GitHub Actions 会每天自动运行 `main.py`，将 `public/` 目录提交到 `gh-pages` 分支并部署到 GitHub Pages。
+```bash
+python fill_meta.py                 # 目录 → 匹配 → 详情
+python fill_meta.py --match-only    # 只重新匹配，不联网
+```
+
+### 重制 EPUB（`gen_epub.py`、`build_batch.py`、`build_request.py`）
+
+TXT 源的 EPUB 只有纯文本，所以对这些小说从 wenku8 重新抓取目录、正文与插图，生成带封面、简介、分卷目录的 EPUB3（`epub_maker.py` 直接用 `zipfile` 写入，生成结果可通过 epubcheck）。插图默认长边压缩到 1000px（JPEG），体积约为原图的 1/5。
+
+```bash
+python gen_epub.py --aid 129                       # 整本
+python gen_epub.py --aid 129 --split               # 按卷：out/epub/129/v01.epub ...
+python gen_epub.py --aid 129 --split --max-side 800 --no-images --volumes 1,3
+```
+
+- **批量预生成** `.github/workflows/build_epub.yml`（每日定时 / 手动触发）：`build_batch.py` 为尚未生成、或 TXT 源已更新的小说按卷生成并上传到 Release（`epub-NN`，每个 Release 容纳 200 个 aid），状态记录在 `out/epub_index.json`（每个 aid 一行）。每本生成后立即上传并保存，中断后重跑即可继续；章节有 429 限流时自动退避。
+- **按需生成** `.github/workflows/build_request.yml`：网页「请求生成」会预填一个标题以 `[build]` 开头的 Issue（模板 `.github/ISSUE_TEMPLATE/build-request.md`），`build_request.py` 解析后生成并在 Issue 回复下载链接。默认参数的结果会计入 `epub_index.json`，其他参数的结果上传到 `epub-custom`。
+    - Issue 内容视为不可信输入，仅通过环境变量传入并严格校验（aid 必须在仅 TXT 源列表中，分辨率限定枚举）
+    - `issues` 事件只会运行默认分支（`main`）上的工作流
+- 其他 Issue 模板：`.github/ISSUE_TEMPLATE/feedback.yml`（意见、建议与数据错误反馈）
 
 ## Remarks
 
-为加快访问速度，HTML、CSS、JS 文件均已压缩（源代码在 `source` 目录下），且使用 jsDeliver CDN 加速。  
+- 页面不再使用 CDN：HTML 内联 CSS/JS 与数据（约 0.9 MB，gzip 后更小），列表按需分批渲染，首屏很快。
+- 模板源码在 `source/template.html`，修改后运行 `python -c "import main; main.create_html()"` 即可重新生成 `docs/index.html`。
 
-> 可参考本人博客中 [加快 GitHub Pages 国内访问速度](https://mojimoon.github.io/blog/2025/speedup-github-page/) 一文。
+> 加快 GitHub Pages 国内访问速度可参考本人博客中的 [这篇文章](https://mojimoon.github.io/blog/2025/speedup-github-page/)。
 
 ## License
 

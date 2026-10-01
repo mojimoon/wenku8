@@ -23,7 +23,7 @@ html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
 a{color:var(--acc);text-decoration:none}a:hover{text-decoration:underline}
 button{font:inherit;color:inherit}
-.wrap{padding:0 clamp(12px,2.5vw,40px) 48px}
+.wrap{max-width:1080px;margin:0 auto;padding:0 12px 48px}
 header{padding:18px 0 4px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
 header h1{flex:1;min-width:0;margin:0;font-size:1.5rem;line-height:1.3;cursor:pointer}
 .hr{display:flex;gap:10px;flex:none;align-items:center}
@@ -41,7 +41,7 @@ header h1{flex:1;min-width:0;margin:0;font-size:1.5rem;line-height:1.3;cursor:po
 .chip[aria-pressed=true]{background:var(--acc);border-color:var(--acc);color:var(--acc-fg)}
 .cnt{margin-left:auto;color:var(--muted);font-size:.8rem}
 ul.list{list-style:none;margin:6px 0 0;padding:0;background:var(--card);border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
-.list li{display:grid;grid-template-columns:minmax(0,1fr) minmax(8rem,14rem) 5.5rem auto;gap:2px 12px;align-items:center;padding:6px 14px;border-top:1px solid var(--line);cursor:pointer}
+.list li{display:grid;grid-template-columns:minmax(0,1fr) 9rem 5.5rem auto;gap:2px 12px;align-items:center;padding:6px 14px;border-top:1px solid var(--line);cursor:pointer}
 .list li:first-child{border-top:0}
 .list li:hover{background:var(--hover)}
 .m{min-width:0}.m b{font-weight:600;overflow-wrap:anywhere}

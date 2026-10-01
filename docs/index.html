@@ -88,7 +88,7 @@ details summary{cursor:pointer;padding:10px 12px;font-size:.85rem;font-weight:60
  header{padding-top:12px}
  .ib{height:30px;min-width:30px;padding:0 8px;font-size:.78rem}
  .dt{font-size:.9rem}
- header h1{font-size:.88rem;white-space:nowrap}
+ header h1{font-size:.95rem;white-space:nowrap}
  header{gap:6px 8px}.hr{gap:6px}
  .sub span{display:block}.sub i{display:none}
  .list li{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"m b" "s u";padding:7px 12px;gap:2px 8px}
@@ -255,7 +255,7 @@ function openDlg(it){
   h+=(b.v.length>1?'<div class="note">“依次下载全部”会逐卷触发下载，如被浏览器拦截请允许“多个文件下载”。</div>':'')+'</div>';
  }
  if(it.x){
-  h+='<div class="sec"><div class="r"><div class="rl"><i class="p t">TXT</i>纯文本 EPUB<small>'+(b?'不推荐':'未排版、无插图')+'</small></div>'
+  h+='<div class="sec"><div class="r"><div class="rl"><i class="p t">TXT</i>纯文本 EPUB<small>'+('不推荐（无排版插图）')+'</small></div>'
    +'<div class="rr"><a class="btn o s" href="'+esc(txtUrl(it))+'">下载</a></div></div></div>';
  }
  if(it.n&&!it.l){
@@ -267,7 +267,7 @@ function openDlg(it){
    +'<div class="r w"><div class="rl"><small>将在 GitHub 打开预填的 Issue（需登录），提交后由 Actions 自动生成，约数分钟至半小时，完成后在 Issue 中回复下载链接。</small></div>'
    +'<div class="rr"><button class="btn" data-a="req">提交请求</button></div></div></details></div>';
  }
- if(it.n)h+='<div style="margin-top:12px;font-size:.85rem"><a href="https://www.wenku8.net/book/'+it.n+'.htm" target="_blank" rel="noopener">在轻小说文库查看 ↗</a></div>';
+ if(it.n)h+='<div style="margin-top:12px;font-size:.85rem"><a href="https://www.wenku8.net/book/'+it.n+'.htm" target="_blank" rel="noopener">文库 ↗</a></div>';
  $('db').innerHTML=h;
  if(!dlg.open)dlg.showModal();
 }

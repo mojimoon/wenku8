@@ -251,7 +251,7 @@ def merge():
     df_post = pd.read_csv(POST_LIST_FILE, encoding='utf-8')
     df_post.drop_duplicates(subset=['novel_title'], keep='first', inplace=True)
     df_post.reset_index(drop=True, inplace=True)
-    df_post['volume'] = df_post['post_title'].apply(replace_chinese_numerals)
+    df_post['volume'] = df_post['post_title'].str.strip()   # 保留原称（如“第十三卷”“短篇集”）；列表按钮上的简写在 create_data 中生成
     # df_post['post_main'] = df_post['novel_title'].apply(lambda x: x[:x.rfind('(')] if x[-1] == ')' else x)
     df_post['post_alt'] = df_post['novel_title'].apply(lambda x: x[x.rfind('(')+1:-1] if x[-1] == ')' else "")
     df_post['post_pure'] = df_post['novel_title'].apply(purify)
@@ -281,8 +281,8 @@ def merge():
                 df_post.loc[mask, 'dl_label'] = parts[1]
                 df_post.loc[mask, 'dl_pwd'] = parts[2]
                 if len(parts) > 4:
-                    if parts[3][:2] == '更新' or parts[3][:2] == '补全':
-                        df_post.loc[mask, 'dl_remark'] = parts[3][2:]
+                    # 注释：仅“更新台版/更新网译”去掉前两字，其余（补全旧作、更新短篇、修正错误……）完整保留
+                    df_post.loc[mask, 'dl_remark'] = parts[3][2:] if parts[3] in ('更新台版', '更新网译') else parts[3]
             #     if mask.sum() > 1:
             #         print(f'[WARN] {mask.sum()} entries matched for {parts[3]}')
             # else:
@@ -390,6 +390,10 @@ def create_data():
                 'n': aid, 'l': _s(row['dl_label']), 'p': _s(row['dl_pwd']), 'v': _s(row['volume']),
                 'r': _s(row['dl_remark']),
                 'x': txt[len(RAW_PREFIX):] if txt.startswith(RAW_PREFIX) else txt}
+        if item['v']:
+            vs = replace_chinese_numerals(item['v']).strip()   # “第七卷”->“7”，用于列表按钮
+            if vs != item['v']:
+                item['vs'] = vs
         if aid in built and not item['l']:   # 重制版仅用于没有蓝奏 EPUB 源的条目
             item['b'] = 1
         items.append({k: v for k, v in item.items() if v != ''})

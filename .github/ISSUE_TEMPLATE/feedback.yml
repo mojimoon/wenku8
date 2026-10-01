@@ -1,0 +1,28 @@
+name: 意见 / 建议 / 问题反馈
+description: 页面使用问题、数据错误、功能建议等
+title: "[feedback] "
+labels: [feedback]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: 类型
+      options:
+        - 建议（新功能 / 改进）
+        - 问题（页面或下载异常）
+        - 数据错误（书名、作者、链接、密码等）
+        - 其他
+    validations:
+      required: true
+  - type: textarea
+    id: content
+    attributes:
+      label: 内容
+      description: 请尽量描述清楚。数据错误请附上书名或小说 ID。
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: 环境（可选）
+      description: 设备与浏览器，如 iPhone Safari / Windows Chrome

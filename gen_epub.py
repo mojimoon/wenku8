@@ -34,7 +34,7 @@ CACHE_DIR = os.path.join('out', 'cache')
 STATE_FILE = os.path.join('out', 'epub_state.json')
 SUMMARY_FILE = os.path.join('out', 'epub_summary.json')
 IMAGE_WORKERS = 4
-MAX_SIDE = 1400       # 插图长边上限（像素）
+MAX_SIDE = 1000       # 插图长边上限（像素）
 JPEG_QUALITY = 80
 
 

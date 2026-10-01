@@ -44,7 +44,7 @@ UNMATCHED_CSV = os.path.join(OUT_DIR, 'txt_unmatched.csv')
 # 注意：wenku8 的 Cloudflare 会对"完整浏览器 UA"弹 challenge，而简短的 Mozilla/5.0 可直接通过
 REQUESTS_UA = 'Mozilla/5.0'
 DELAY = (0.8, 1.8)       # 请求间隔（秒）
-LEVELS = ['requests', 'playwright', 'steel']
+LEVELS = ['requests', 'curl_cffi', 'playwright', 'steel']
 STEEL_TIMEOUT = 15 * 60  # Steel 会话最长存活秒数
 
 
@@ -125,6 +125,7 @@ class Fetcher:
         self.session = requests.Session()
         self.session.headers.update({'User-Agent': REQUESTS_UA, 'Referer': DOMAIN + '/'})
         self.session.cookies.update(self.cookies)
+        self._cffi = None
         self._pw = None
         self._browser = None
         self._context = None
@@ -134,8 +135,16 @@ class Fetcher:
 
     # --- 各级实现 ---
 
-    def _get_requests(self, url: str, encoding: str = 'utf-8') -> str:
-        resp = self.session.get(url, timeout=15, allow_redirects=True)
+    def _get_requests(self, url: str, encoding: str = 'utf-8', impersonate: bool = False) -> str:
+        if impersonate:
+            # curl_cffi 模拟 Chrome 的 TLS 指纹，可通过数据中心 IP（如 GitHub Actions）上的 Cloudflare 检测
+            if self._cffi is None:
+                from curl_cffi import requests as cffi
+                self._cffi = cffi.Session(impersonate='chrome', headers={'Referer': DOMAIN + '/'})
+                self._cffi.cookies.update(self.cookies)
+            resp = self._cffi.get(url, timeout=20, allow_redirects=True)
+        else:
+            resp = self.session.get(url, timeout=15, allow_redirects=True)
         if '/login.php' in resp.url:
             raise LoginExpired(f'被重定向到登录页，请更新 COOKIE: {resp.url}')
         if resp.status_code == 429:
@@ -208,8 +217,8 @@ class Fetcher:
                 while attempt < 2:
                     attempt += 1
                     try:
-                        if name == 'requests':
-                            html = self._get_requests(url, encoding)
+                        if name in ('requests', 'curl_cffi'):
+                            html = self._get_requests(url, encoding, impersonate=(name == 'curl_cffi'))
                         else:
                             html = self._get_browser(url, steel=(name == 'steel'))
                         if is_challenge(html):

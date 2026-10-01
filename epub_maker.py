@@ -34,6 +34,8 @@ class NovelMeta:
     publisher: str = ''
     subjects: list = field(default_factory=list)
     status: str = ''
+    series: str = ''          # 系列名（分卷 EPUB 用）
+    series_index: int = 0
     language: str = 'zh-CN'
     identifier: str = ''      # 为空则随机生成 UUID
     modified: str = ''        # YYYY-MM-DD，为空则取今天
@@ -179,7 +181,7 @@ def page(title: str, body: str) -> bytes:
 
 
 def create_epub(meta: NovelMeta, volumes: list, images: dict = None,
-                cover_data: bytes = None, output_path: str = 'output.epub') -> str:
+                cover_data: bytes = None, output_path: str = 'output.epub', prefix: str = '') -> str:
     """
     生成 EPUB3 文件。
 
@@ -204,14 +206,14 @@ def create_epub(meta: NovelMeta, volumes: list, images: dict = None,
     # 封面
     cover_name = ''
     if cover_data:
-        cover_name = 'cover.' + sniff_ext(cover_data)
+        cover_name = prefix + 'cover.' + sniff_ext(cover_data)
         files['Images/' + cover_name] = cover_data
         manifest.append(('cover-image', 'Images/' + cover_name, MIME[sniff_ext(cover_data)], 'cover-image'))
-        files['Text/Cover.xhtml'] = page(
+        files[f'Text/{prefix}Cover.xhtml'] = page(
             '封面', f'<div class="cover"><img src="../Images/{cover_name}" alt="cover"/></div>')
-        manifest.append(('cover', 'Text/Cover.xhtml', 'application/xhtml+xml', ''))
+        manifest.append(('cover', f'Text/{prefix}Cover.xhtml', 'application/xhtml+xml', ''))
         spine.append('cover')
-        nav_tree.append(('封面', 'Text/Cover.xhtml', []))
+        nav_tree.append(('封面', f'Text/{prefix}Cover.xhtml', []))
 
     # 简介页
     info = [f'<h1>{escape_xml(meta.title)}</h1>', f'<p class="meta">{escape_xml(meta.author)}</p>']
@@ -225,10 +227,10 @@ def create_epub(meta: NovelMeta, volumes: list, images: dict = None,
         info.append(f'<div class="intro">{paras}</div>')
     if meta.source_url:
         info.append(f'<p class="meta">来源：{escape_xml(meta.source_url)}</p>')
-    files['Text/Intro.xhtml'] = page('简介', '\n'.join(info))
-    manifest.append(('intro', 'Text/Intro.xhtml', 'application/xhtml+xml', ''))
+    files[f'Text/{prefix}Intro.xhtml'] = page('简介', '\n'.join(info))
+    manifest.append(('intro', f'Text/{prefix}Intro.xhtml', 'application/xhtml+xml', ''))
     spine.append('intro')
-    nav_tree.append(('简介', 'Text/Intro.xhtml', []))
+    nav_tree.append(('简介', f'Text/{prefix}Intro.xhtml', []))
 
     # 图片
     for name, data in images.items():
@@ -239,14 +241,14 @@ def create_epub(meta: NovelMeta, volumes: list, images: dict = None,
     # 分卷与章节
     ci = 0
     for vi, vol in enumerate(volumes, 1):
-        vhref = f'Text/v{vi}.xhtml'
+        vhref = f'Text/{prefix}v{vi}.xhtml'
         files[vhref] = page(vol.title, f'<h1 class="volume">{escape_xml(vol.title)}</h1>')
         manifest.append((f'v{vi}', vhref, 'application/xhtml+xml', ''))
         spine.append(f'v{vi}')
         children = []
         for ch in vol.chapters:
             ci += 1
-            href = f'Text/c{ci:04d}.xhtml'
+            href = f'Text/{prefix}c{ci:04d}.xhtml'
             body = f'<h1>{escape_xml(ch.title)}</h1>\n' + '\n'.join(block_to_xhtml(b) for b in ch.blocks)
             files[href] = page(ch.title, body)
             manifest.append((f'c{ci:04d}', href, 'application/xhtml+xml', ''))
@@ -306,6 +308,13 @@ def create_epub(meta: NovelMeta, volumes: list, images: dict = None,
     md.append(f'<meta property="dcterms:modified">{modified}T00:00:00Z</meta>')
     if cover_name:
         md.append('<meta name="cover" content="cover-image"/>')
+    if meta.series:
+        sx = escape_xml(meta.series)
+        md.append(f'<meta property="belongs-to-collection" id="series1">{sx}</meta>')
+        md.append('<meta refines="#series1" property="collection-type">series</meta>')
+        md.append(f'<meta refines="#series1" property="group-position">{meta.series_index}</meta>')
+        md.append(f'<meta name="calibre:series" content="{sx}"/>')
+        md.append(f'<meta name="calibre:series_index" content="{meta.series_index}"/>')
 
     items = '\n'.join(
         f'<item id="{escape_xml(i)}" href="{escape_xml(h)}" media-type="{m}"' + (f' properties="{p}"' if p else '') + '/>'

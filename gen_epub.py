@@ -14,6 +14,7 @@
 import argparse
 import datetime
 import hashlib
+import io
 import json
 import os
 import re
@@ -25,13 +26,15 @@ import requests
 from bs4 import BeautifulSoup, NavigableString, Tag
 
 from epub_maker import Chapter, NovelMeta, Volume, create_epub, sniff_ext
-from fill_meta import DOMAIN, Fetcher, FetchError, LoginExpired, parse_detail
+from fill_meta import DOMAIN, LEVELS, Fetcher, FetchError, LoginExpired, parse_detail
 
 EPUB_OUT_DIR = os.path.join('out', 'epub')
 CACHE_DIR = os.path.join('out', 'cache')
 STATE_FILE = os.path.join('out', 'epub_state.json')
 SUMMARY_FILE = os.path.join('out', 'epub_summary.json')
 IMAGE_WORKERS = 4
+MAX_SIDE = 1600       # 插图长边上限（像素）
+JPEG_QUALITY = 82
 
 
 # ─── 小说页面解析 ───────────────────────────────────────
@@ -158,7 +161,36 @@ def safe_filename(name: str) -> str:
 # ─── 单本小说 ───────────────────────────────────────────
 
 
-def build_novel(fetcher: Fetcher, aid: int, max_chapters: int = 0, skip_update: str = '') -> dict | None:
+def compress_image(data: bytes) -> bytes:
+    """长边限制 MAX_SIDE、转 JPEG（体积更小）；GIF 或压缩后反而更大时保持原样。"""
+    if data[:3] == b'GIF':
+        return data
+    try:
+        from PIL import Image
+        im = Image.open(io.BytesIO(data))
+        if im.mode not in ('RGB', 'L'):
+            im = im.convert('RGB')
+        if max(im.size) > MAX_SIDE:
+            im.thumbnail((MAX_SIDE, MAX_SIDE), Image.LANCZOS)
+        buf = io.BytesIO()
+        im.save(buf, 'JPEG', quality=JPEG_QUALITY, optimize=True, progressive=True)
+        return buf.getvalue() if len(buf.getvalue()) < len(data) else data
+    except Exception as e:
+        print(f'    [WARN] 图片压缩失败: {e}')
+        return data
+
+
+def first_illustration(volume: Volume, images: dict) -> bytes | None:
+    for ch in volume.chapters:
+        if ch.title == '插图':
+            for kind, v in ch.blocks:
+                if kind == 'img':
+                    return images[v]
+    return None
+
+
+def build_novel(fetcher: Fetcher, aid: int, max_chapters: int = 0, skip_update: str = '',
+                split: bool = False, compress: bool = True) -> dict | None:
     detail = parse_detail(fetcher.get(book_url(aid), lambda h: 'id="content"' in h))
     title = detail.get('title') or str(aid)
     if skip_update and detail.get('update') == skip_update:
@@ -184,15 +216,20 @@ def build_novel(fetcher: Fetcher, aid: int, max_chapters: int = 0, skip_update: 
             if n % 20 == 0 or n == total:
                 print(f'      章节 {n}/{total}')
 
-    # 2. 图片：按出现顺序编号，并发下载
+    # 2. 图片：按出现顺序编号（全书唯一），并发下载并压缩
     urls = []
     for blocks in chapter_blocks.values():
         for kind, v in blocks:
             if kind == 'img' and v not in urls:
                 urls.append(v)
     print(f'    下载 {len(urls)} 张插图...')
+
+    def load(u):
+        data = fetch_image(aid, u)
+        return compress_image(data) if data and compress else data
+
     with ThreadPoolExecutor(IMAGE_WORKERS) as ex:
-        results = list(ex.map(lambda u: fetch_image(aid, u), urls))
+        results = list(ex.map(load, urls))
     images, name_of, failed = {}, {}, 0
     for u, data in zip(urls, results):
         if data is None:
@@ -204,9 +241,9 @@ def build_novel(fetcher: Fetcher, aid: int, max_chapters: int = 0, skip_update: 
     if failed:
         print(f'    [WARN] {failed} 张图片下载失败，已跳过')
 
-    # 3. 组装
-    volumes = []
-    for vtitle, chapters in toc:
+    # 3. 组装（保留卷在目录中的原始序号 index，便于分卷文件命名）
+    volumes = []  # [(index, Volume)]
+    for vi, (vtitle, chapters) in enumerate(toc, 1):
         vol = Volume(vtitle)
         for ctitle, url in chapters:
             if url not in chapter_blocks:
@@ -216,38 +253,56 @@ def build_novel(fetcher: Fetcher, aid: int, max_chapters: int = 0, skip_update: 
             if blocks:  # 跳过空章节（如图片全部失败的插图）
                 vol.chapters.append(Chapter(ctitle, blocks))
         if vol.chapters:
-            volumes.append(vol)
+            volumes.append((vi, vol))
 
-    # 4. 封面：优先第一张插图（站内封面只有小图），否则用小图
-    cover = None
-    for vol in volumes:
-        for ch in vol.chapters:
-            if ch.title == '插图' and any(k == 'img' for k, _ in ch.blocks):
-                first = next(v for k, v in ch.blocks if k == 'img')
-                cover = images[first]
-                break
-        if cover:
+    novel_cover = None
+    for _, vol in volumes:
+        novel_cover = first_illustration(vol, images)
+        if novel_cover:
             break
-    if cover is None:
-        cover = fetch_image(aid, cover_url(aid))
+    if novel_cover is None:  # 站内封面只有小图，仅作兜底
+        novel_cover = fetch_image(aid, cover_url(aid))
 
-    meta = NovelMeta(
-        title=title,
+    base = dict(
         author=detail.get('author', ''),
         source_url=book_url(aid),
         description=detail.get('description', ''),
         publisher=detail.get('publisher', ''),
         subjects=detail.get('tags', '').split(),
         status=detail.get('status', ''),
-        identifier=f'urn:wenku8:{aid}',
         modified=detail.get('update', ''),
     )
-    os.makedirs(EPUB_OUT_DIR, exist_ok=True)
-    out = os.path.join(EPUB_OUT_DIR, f'{safe_filename(title)}.epub')
-    create_epub(meta, volumes, images, cover, out)
-    print(f'    完成: {out} ({os.path.getsize(out) / 1024:.0f} KB, {len(images)} 图)')
-    return {'aid': aid, 'title': title, 'author': meta.author, 'last_update': meta.modified,
-            'epub_file': out, 'chapter_count': sum(len(v.chapters) for v in volumes)}
+    chapter_total = sum(len(v.chapters) for _, v in volumes)
+    result = {'aid': aid, 'title': title, 'author': base['author'], 'last_update': base['modified'],
+              'chapter_count': chapter_total, 'built_at': datetime.datetime.now().isoformat()}
+
+    # 4. 输出
+    if not split:
+        os.makedirs(EPUB_OUT_DIR, exist_ok=True)
+        out = os.path.join(EPUB_OUT_DIR, f'{safe_filename(title)}.epub')
+        meta = NovelMeta(title=title, identifier=f'urn:wenku8:{aid}', **base)
+        create_epub(meta, [v for _, v in volumes], images, novel_cover, out)
+        print(f'    完成: {out} ({os.path.getsize(out) / 1024:.0f} KB, {len(images)} 图)')
+        result['epub_file'] = out
+        return result
+
+    out_dir = os.path.join(EPUB_OUT_DIR, str(aid))
+    os.makedirs(out_dir, exist_ok=True)
+    vols_info = []
+    for vi, vol in volumes:
+        used = {v for ch in vol.chapters for k, v in ch.blocks if k == 'img'}
+        meta = NovelMeta(title=f'{title} {vol.title}', identifier=f'urn:wenku8:{aid}:v{vi}',
+                         series=title, series_index=vi, **base)
+        out = os.path.join(out_dir, f'v{vi:02d}.epub')
+        create_epub(meta, [vol], {k: images[k] for k in sorted(used)},
+                    first_illustration(vol, images) or novel_cover, out, prefix=f'v{vi:02d}_')
+        vols_info.append({'index': vi, 'title': vol.title, 'file': f'v{vi:02d}.epub',
+                          'size': os.path.getsize(out), 'chapters': len(vol.chapters), 'images': len(used)})
+        print(f'    {vol.title}: {vols_info[-1]["size"] / 1024:.0f} KB')
+    result['volumes'] = vols_info
+    with open(os.path.join(out_dir, 'index.json'), 'w', encoding='utf-8') as f:
+        json.dump(result, f, ensure_ascii=False, indent=1)
+    return result
 
 
 # ─── 最近更新列表 ───────────────────────────────────────
@@ -287,10 +342,12 @@ def main():
     ap = argparse.ArgumentParser(description='wenku8 EPUB 生成')
     ap.add_argument('--aid', type=int, nargs='*', default=[], help='小说 ID')
     ap.add_argument('--toplist', action='store_true', help='处理最近更新列表')
-    ap.add_argument('--scraper', choices=['auto', 'requests', 'playwright', 'steel'], default='auto')
+    ap.add_argument('--scraper', choices=['auto', *LEVELS], default='auto')
     ap.add_argument('--force', action='store_true', help='忽略状态文件，强制重新生成')
     ap.add_argument('--limit', type=int, default=0, help='最多处理的小说数（0=不限）')
     ap.add_argument('--max-chapters', type=int, default=0, help='每本最多抓取章节数（测试用）')
+    ap.add_argument('--split', action='store_true', help='按卷输出 out/epub/{aid}/vNN.epub 与 index.json')
+    ap.add_argument('--no-compress', action='store_true', help='不压缩插图')
     args = ap.parse_args()
     if not args.aid and not args.toplist:
         ap.error('请指定 --aid 或 --toplist')
@@ -310,7 +367,7 @@ def main():
             try:
                 prev = state['novels'].get(str(aid), {})
                 skip = '' if args.force or not args.toplist else prev.get('last_update', '')
-                info = build_novel(fetcher, aid, args.max_chapters, skip)
+                info = build_novel(fetcher, aid, args.max_chapters, skip, args.split, not args.no_compress)
                 if info is None:
                     continue
             except LoginExpired:

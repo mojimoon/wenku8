@@ -132,7 +132,7 @@ details summary{cursor:pointer;padding:10px 12px;font-size:.85rem;font-weight:60
 </div>
 
 <dialog id="dlg">
- <div class="dh"><h2 id="dt"></h2><button class="ib" id="dx" aria-label="关闭">✕</button></div>
+ <div class="dh"><h2 id="dt"></h2><a class="btn o" id="dw" style="display:none" target="_blank" rel="noopener">文库 ↗</a><button class="ib" id="dx" aria-label="关闭">✕</button></div>
  <div class="db" id="db"></div>
 </dialog>
 <div id="toast" popover="manual"></div>
@@ -244,6 +244,8 @@ var dlg=$('dlg'),cur=null;
 function openDlg(it){
  cur=it;var h='',b=it.n&&built[it.n];
  $('dt').innerHTML=esc(it.t)+cp(it.t)+'<small>'+(it.a?esc(it.a)+cp(it.a)+' · ':'')+(it.au?esc(it.au)+cp(it.au)+' · ':'')+esc(it.u||'')+'</small>';
+ $('dw').style.display=it.n?'inline-flex':'none';
+ if(it.n)$('dw').href='https://www.wenku8.net/book/'+it.n+'.htm';else $('dw').removeAttribute('href');
  if(it.l){
   h+='<div class="sec"><div class="r w"><div class="rl"><i class="p e">蓝奏 EPUB</i>'+(it.r?'<i class="p k">'+esc(it.r)+'</i>':'')+esc(it.v||'')+'</div>'
    +'<div class="rr">'+(it.p?'<span>密码 <code>'+esc(it.p)+'</code>'+cp(it.p)+'</span>':'')+'<button class="btn" data-a="lz">'+(it.p?'复制密码打开':'打开')+'</button></div></div></div>';
@@ -267,7 +269,7 @@ function openDlg(it){
    +'<div class="r w"><div class="rl"><small>将在 GitHub 打开预填的 Issue（需登录），提交后由 Actions 自动生成，约数分钟至半小时，完成后在 Issue 中回复下载链接。</small></div>'
    +'<div class="rr"><button class="btn" data-a="req">提交请求</button></div></div></details></div>';
  }
- if(it.n)h+='<div style="margin-top:12px;font-size:.85rem"><a href="https://www.wenku8.net/book/'+it.n+'.htm" target="_blank" rel="noopener">文库 ↗</a></div>';
+
  $('db').innerHTML=h;
  if(!dlg.open)dlg.showModal();
 }

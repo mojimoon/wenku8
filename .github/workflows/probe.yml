@@ -1,0 +1,22 @@
+name: Probe wenku8 access
+
+# 一次性探针：检测 GitHub runner 能否访问 wenku8（push 本分支或手动触发）
+on:
+  workflow_dispatch:
+  push:
+    branches: [beta]
+    paths: [.github/workflows/probe.yml, probe_actions.py]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install requests playwright && python -m playwright install --with-deps chromium
+      - name: Setup secrets
+        run: echo "${{ secrets.WENKU_COOKIES }}" > COOKIE
+      - run: python probe_actions.py

@@ -4,4 +4,6 @@ pandas>=2.2.0
 python-dotenv>=1.2.1
 steel-sdk>=0.15.0
 playwright>=1.54.0
-ebooklib>=0.18
+
+Pillow>=10.0.0
+curl_cffi>=0.7.0

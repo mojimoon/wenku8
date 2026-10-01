@@ -1,42 +1,22 @@
-import requests
 from bs4 import BeautifulSoup
 import csv
 import time
 import random
 from urllib.parse import urljoin
 import sys
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
 import re
 import json
 import os
 import pandas as pd
-import sys
+
+from utils import LEVELS, Fetcher
 
 BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
 params = { 'keyword': '8691', 'charset': 'utf-8', 'page': 1 }
-# 'requests' | 'playwright' | 'steel' | 'none'
-_scraper = 'steel'
-_timeout = 40  # Steel 会话最长存活秒数（结束时会主动 release，不会白白计费）
-user_agents = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Safari/605.1.15'
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Safari/605.1.15'
-]
-HEADERS = { 
-    # 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
-    'User-Agent': random.choice(user_agents),
-    'Referer': 'https://www.wenku8.net/',
-}
+# 抓取方式见 utils/fetcher.py: 'curl_cffi' | 'requests' | 'playwright' | 'steel' | 'auto'；'none' 表示跳过抓取与合并
+# 命令行: python main.py [scraper]。以 _scraper 起步，失败时自动向后升级（curl_cffi -> playwright -> steel）
+_scraper = 'curl_cffi'
 DOMAIN = 'https://www.wenku8.net'
-CDN_PREFIX = 'https://cdn.jsdmirror.com/gh/'
-LATEST_CDN = f'{CDN_PREFIX}mojimoon/wenku8@main/docs/'
-TAG_CDN = f'{CDN_PREFIX}mojimoon/wenku8@v1/docs/'
-FAVICON = f'{CDN_PREFIX}mojimoon/mojimoon.github.io@v3/favicon.svg'
 OUT_DIR = 'out'
 PUBLIC_DIR = 'docs'
 COOKIE_FILE = os.path.join(os.path.dirname(__file__), 'COOKIE')
@@ -44,150 +24,21 @@ POST_LIST_FILE = os.path.join(OUT_DIR, 'post_list.csv')
 TXT_LIST_FILE = os.path.join(OUT_DIR, 'txt_list.csv')
 DL_FILE = os.path.join(OUT_DIR, 'dl.txt')
 MERGED_CSV = os.path.join(OUT_DIR, 'merged.csv')
-EPUB_HTML = os.path.join(PUBLIC_DIR, 'epub.html')
 MERGED_HTML = os.path.join(PUBLIC_DIR, 'index.html')
 
-retry_strategy = Retry(
-    total=5,
-    status_forcelist=[500, 502, 503, 504],
-    backoff_factor=2
-)
-session = requests.Session()
-adapter = HTTPAdapter(max_retries=retry_strategy)
-session.mount('http://', adapter)
-session.mount('https://', adapter)
-session.headers.update(HEADERS)
-
-def parse_cookie_line(line: str):
-    line = line.strip()
-    if not line:
-        return {}
-    cookie_dict = {}
-    for part in line.split(';'):
-        part = part.strip()
-        if not part or '=' not in part:
-            continue
-        k, v = part.split('=', 1)
-        cookie_dict[k.strip()] = v.strip()
-    return cookie_dict
-
-def load_cookie_from_file(sess: requests.Session, filepath: str):
-    if not os.path.exists(filepath):
-        return
-    with open(filepath, 'r', encoding='utf-8') as f:
-        # 只取第一行，整行都是 "k1=v1; k2=v2; ..."
-        line = f.readline()
-    cookie_dict = parse_cookie_line(line)
-    if cookie_dict:
-        jar = requests.utils.cookiejar_from_dict(cookie_dict)
-        sess.cookies.update(jar)
-
-load_cookie_from_file(session, COOKIE_FILE)
-
-browser = None
-playwright_ctx_cookie_dict = None
-steel_dict = None
-
-def init_playwright():
-    from playwright.sync_api import sync_playwright
-    global browser, playwright_ctx_cookie_dict
-    if browser is None:
-        playwright = sync_playwright().start()
-        browser = playwright.chromium.launch(
-            headless=True,
-            args=['--no-sandbox', '--disable-setuid-sandbox']
-        )
-        # 预解析 COOKIE_FILE，供后面 new_context 使用
-        if os.path.exists(COOKIE_FILE):
-            with open(COOKIE_FILE, 'r', encoding='utf-8') as f:
-                line = f.readline()
-            playwright_ctx_cookie_dict = parse_cookie_line(line)
-        else:
-            playwright_ctx_cookie_dict = {}
-    return browser
-
-def init_steel():
-    from steel import Steel
-    from dotenv import dotenv_values
-    from playwright.sync_api import sync_playwright
-    global browser, playwright_ctx_cookie_dict, steel_dict
-    steel_api_key = dotenv_values().get('STEEL_API_KEY', '')
-    client = Steel(steel_api_key=steel_api_key)
-    steel_session = client.sessions.create(api_timeout=_timeout * 1000)
-    print(f'[INFO] Running Steel session: {steel_session.id}')
-    steel_dict = {
-        'api_key': steel_api_key,
-        'session_id': steel_session.id,
-        'client': client
-    }
-
-    if browser is None:
-        playwright = sync_playwright().start()
-        browser = playwright.chromium.connect_over_cdp(
-            f'wss://connect.steel.dev?apiKey={steel_api_key}&sessionId={steel_session.id}'
-        )
-
-        if os.path.exists(COOKIE_FILE):
-            with open(COOKIE_FILE, 'r', encoding='utf-8') as f:
-                line = f.readline()
-            playwright_ctx_cookie_dict = parse_cookie_line(line)
-        else:
-            playwright_ctx_cookie_dict = {}
-    return browser
-
-def exit_steel():
-    browser.close()
-    client = steel_dict['client']
-    session_id = steel_dict['session_id']
-    client.sessions.release(session_id)
-
-def scrape_page_playwright(url: str):
-    global browser, playwright_ctx_cookie_dict
-    if browser is None:
-        browser = (init_steel() if _scraper == 'steel' else init_playwright())
-    # 每次新建 context，并注入 cookie
-    with browser.new_context() as context:
-        if playwright_ctx_cookie_dict:
-            cookies = [
-                {
-                    "name": k,
-                    "value": v,
-                    "domain": "www.wenku8.net",
-                    "path": "/",
-                }
-                for k, v in playwright_ctx_cookie_dict.items()
-            ]
-            context.add_cookies(cookies)
-        page = context.new_page()
-        try:
-            page.goto(url, wait_until='domcontentloaded')
-        except Exception as e:
-            print(f"[WARN] Page.goto encountered an error or timeout, attempting to proceed: {e}")
-
-        if "/login.php" in page.url:
-            raise ValueError(f"[ERROR] Playwright 模式被重定向到登录页，可能需要更新 COOKIE 文件: {page.url}")
-        html_content = page.content()
-        page.close()
-    return html_content
-
-def scrape_page_requests(url: str):
-    resp = session.get(url, timeout=10, allow_redirects=True)
-    final_url = resp.url
-    if '/login.php' in final_url:
-        raise ValueError(f"[ERROR] Requests 模式被重定向到登录页，可能需要更新 COOKIE 文件: {final_url}")
-    resp.raise_for_status()
-    resp.encoding = 'utf-8'
-    # with open('debug.html', 'w', encoding='utf-8') as f:
-    #     f.write(resp.text)
-    return resp.text
+_fetcher = None
 
 def scrape_page(url: str):
-    if _scraper == 'playwright' or _scraper == 'steel':
-        return scrape_page_playwright(url)
-    elif _scraper == 'requests':
-        return scrape_page_requests(url)
-    else:
-        raise ValueError(f"Unknown _scraper: {_scraper}")
+    global _fetcher
+    if _fetcher is None:
+        _fetcher = Fetcher(_scraper, fallback=True, delay=(0.3, 0.8))
+    return _fetcher.get(url)
+
+def close_fetcher():
+    global _fetcher
+    if _fetcher is not None:
+        _fetcher.close()
+        _fetcher = None
 
 def build_url_with_params(base_url: str, params: dict):
     if not params:
@@ -334,8 +185,7 @@ def scrape():
             time.sleep(random.uniform(1, 3))
     finally:
         # get_latest 中 sys.exit(0) 或异常退出时也要释放 Steel 会话
-        if _scraper == 'steel' and steel_dict is not None:
-            exit_steel() # close Steel session
+        close_fetcher()  # 释放 playwright / Steel 会话
     print(f'[INFO] new posts: {len(all_entries)}')
 
     # 新内容在前，拼接后写入
@@ -401,7 +251,7 @@ def merge():
     df_post = pd.read_csv(POST_LIST_FILE, encoding='utf-8')
     df_post.drop_duplicates(subset=['novel_title'], keep='first', inplace=True)
     df_post.reset_index(drop=True, inplace=True)
-    df_post['volume'] = df_post['post_title'].apply(replace_chinese_numerals)
+    df_post['volume'] = df_post['post_title'].str.strip()   # 保留原称（如“第十三卷”“短篇集”）；列表按钮上的简写在 create_data 中生成
     # df_post['post_main'] = df_post['novel_title'].apply(lambda x: x[:x.rfind('(')] if x[-1] == ')' else x)
     df_post['post_alt'] = df_post['novel_title'].apply(lambda x: x[x.rfind('(')+1:-1] if x[-1] == ')' else "")
     df_post['post_pure'] = df_post['novel_title'].apply(purify)
@@ -431,8 +281,8 @@ def merge():
                 df_post.loc[mask, 'dl_label'] = parts[1]
                 df_post.loc[mask, 'dl_pwd'] = parts[2]
                 if len(parts) > 4:
-                    if parts[3][:2] == '更新' or parts[3][:2] == '补全':
-                        df_post.loc[mask, 'dl_remark'] = parts[3][2:]
+                    # 注释：仅“更新台版/更新网译”去掉前两字，其余（补全旧作、更新短篇、修正错误……）完整保留
+                    df_post.loc[mask, 'dl_remark'] = parts[3][2:] if parts[3] in ('更新台版', '更新网译') else parts[3]
             #     if mask.sum() > 1:
             #         print(f'[WARN] {mask.sum()} entries matched for {parts[3]}')
             # else:
@@ -495,114 +345,78 @@ def merge():
     df_txt.to_csv(MERGED_CSV, index=False, encoding='utf-8-sig')
 
 # ========== HTML Generation ==========
-# STARME = '<iframe style="margin-left: 2px; margin-bottom:-5px;" frameborder="0" scrolling="0" width="81px" height="20px" src="https://ghbtns.com/github-btn.html?user=mojimoon&repo=wenku8&type=star&count=true" ></iframe>'
-SHIELDS = '<a href="https://github.com/mojimoon/wenku8" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/github/stars/mojimoon/wenku8?style=social" alt="GitHub stars" style="height: 20px;" /></a>'
+GH_PROXY = 'https://gh-proxy.org/'   # 所有 GitHub 下载统一走该代理（页面内拼接）
+RAW_PREFIX = 'https://raw.githubusercontent.com/'
+TEMPLATE_FILE = os.path.join('source', 'template.html')
+TXT_META_CSV = os.path.join(OUT_DIR, 'txt_meta.csv')
+EPUB_INDEX_FILE = os.path.join(OUT_DIR, 'epub_index.json')
+CATALOG_FILE = os.path.join(OUT_DIR, 'wenku_catalog.json')
 
-BUTTONS_CDN = f'{CDN_PREFIX}buttons/github-buttons@v2.33.0/dist/buttons.min.js' # async defer
-BUTTONS_HTML = '<a class="github-button" href="https://github.com/mojimoon/wenku8" data-color-scheme="no-preference: light; light: light; dark: dark;" data-icon="octicon-star" data-size="large" data-show-count="true" aria-label="Star mojimoon/wenku8 on GitHub">Star</a>'
+def _s(v):
+    """NaN/None -> ''，其余转 str 并去空白"""
+    return '' if v is None or (isinstance(v, float) and pd.isna(v)) else str(v).strip()
 
-def create_table_merged(df):
-    rows = []
-    for _, row in df.iterrows():
-        _l, _m, _a, _txt, _dll, _u, _at, _v, _r = row['novel_link'], row['main'], row['alt'], row['download_url'], row['dl_label'], row['update'], row['author'], row['volume'], row['dl_remark']
-        novel_link = None if pd.isna(_l) else _l
-        title_html = f'<a href="{novel_link}" target="_blank">{_m}</a>' if novel_link else _m
-        alt_html = '' if pd.isna(_a) else f"<span class='at'>{_a}</span>"
-        txt_dl = '' if pd.isna(_txt) else f"<a href='{_txt}' target='_blank'>下载</a> <a href='https://ghfast.top/{_txt}' target='_blank'>镜像</a>"
-        volume = '' if pd.isna(_v) else f'({_v})'
-        remark = '' if pd.isna(_r) else f" <span class='bt'>{_r}</span>"
-        lz_dl = '' if pd.isna(_dll) else f"<a href='https://{_prefix}{_dll}' target='_blank'>{volume}</a>{remark}"
-        date = '' if pd.isna(_u) else _u
-        author = '' if pd.isna(_at) else _at
-        lz_pwd = '' if pd.isna(_dll) else row['dl_pwd']
-        rows.append(
-            f"<tr><td>{title_html}{alt_html}</td>"
-            f"<td class='au'>{author}</td><td>{lz_dl}</td><td>{lz_pwd}</td>"
-            f"<td class='dl'>{txt_dl}</td><td class='yd'>{date}</td></tr>"
-        )
-    return ''.join(rows)
+def create_data():
+    """合并后的条目 + 重制版 EPUB 索引 -> 页面内嵌的 JSON 数据。"""
+    df = pd.read_csv(MERGED_CSV, encoding='utf-8-sig', dtype=str)
 
-def create_html_merged():
-    df = pd.read_csv(MERGED_CSV, encoding='utf-8-sig')
-    table = create_table_merged(df)
-    today = time.strftime('%Y-%m-%d', time.localtime())
-    html = (
-        '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">'
-        '<meta name="viewport"content="width=device-width,initial-scale=1.0">'
-        '<meta name="keywords"content="轻小说,sf轻小说,dmzj轻小说,日本轻小说,动漫小说,轻小说电子书,轻小说EPUB下载">'
-        '<meta name="description"content="轻小说文库 EPUB 下载，支持搜索关键字、跳转至源站和蓝奏云下载，已进行移动端适配。">'
-        '<meta name="author"content="mojimoon"><title>轻小说文库 EPUB 下载+</title>'
-        f'<link rel="icon" type="image/svg+xml" href="{FAVICON}">'
-        f'<link rel="stylesheet"href="{TAG_CDN}style.css"></head><body>'
-        '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载+</h1>'
-        f'<h4>({today}) <a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {SHIELDS}</h4>'
-        '<span>所有内容均收集于网络，仅供学习交流使用。'
-        '特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=utf-8">酷儿加冰</a> 和 <a href="https://github.com/ixinzhi">布客新知</a> 整理。</span>'
-        '<span class="at">最新为 Calibre 生成 EPUB，括号内为最新卷数；年更为纯文本 EPUB。</span>'
-        '<div class="right-controls"><a href="./epub.html">'
-        '<button class="btn"id="gotoButton">切换到仅 EPUB 源，加载更快</button></a>'
-        '<button class="btn"id="themeToggle">主题</button>'
-        '<button class="btn"id="clearInput">清除</button></div>'
-        '<div class="search-bar"><input type="text"id="searchInput"placeholder="搜索标题或作者">'
-        '<button class="btn"id="randomButton">随机</button></div>'
-        '<table><thead><tr><th>标题</th><th>作者</th><th>最新</th><th>密码</th><th>年更</th><th>更新</th></tr>'
-        '</thead><tbody id="novelTableBody">'
-        f'{table}</tbody></table>'
-        f'<script src="{TAG_CDN}script_merged.js"></script>'
-        '</body></html>'
-    )
+    # 仅 TXT 源条目通过 txt_meta.csv 补全 wenku8 的 aid
+    txt_aid = {}
+    if os.path.exists(TXT_META_CSV):
+        meta = pd.read_csv(TXT_META_CSV, encoding='utf-8-sig', dtype=str)
+        txt_aid = dict(zip(meta['download_url'], meta['aid']))
+
+    # 蓝奏条目常缺作者：用 wenku8 全站目录（fill_meta.py 生成）按 aid 补全
+    cat_author = {}
+    if os.path.exists(CATALOG_FILE):
+        with open(CATALOG_FILE, 'r', encoding='utf-8') as f:
+            for page in json.load(f)['pages'].values():
+                for it in page:
+                    cat_author[str(it['aid'])] = it.get('author', '')
+
+    built = {}
+    if os.path.exists(EPUB_INDEX_FILE):
+        with open(EPUB_INDEX_FILE, 'r', encoding='utf-8') as f:
+            for aid, e in json.load(f).items():
+                if e.get('volumes') and e.get('tag'):
+                    built[aid] = {'t': e['tag'], 'v': [[v['file'], v['title'], v['size']] for v in e['volumes']]}
+
+    items = []
+    for row in df.to_dict('records'):
+        link, txt = _s(row['novel_link']), _s(row['download_url'])
+        m = re.search(r'/book/(\d+)', link)
+        aid = m.group(1) if m else txt_aid.get(txt, '')
+        item = {'t': _s(row['main']), 'a': _s(row['alt']), 'au': _s(row['author']) or cat_author.get(aid, ''), 'u': _s(row['update']),
+                'n': aid, 'l': _s(row['dl_label']), 'p': _s(row['dl_pwd']), 'v': _s(row['volume']),
+                'r': _s(row['dl_remark']),
+                'x': txt[len(RAW_PREFIX):] if txt.startswith(RAW_PREFIX) else txt}
+        if item['v']:
+            vs = replace_chinese_numerals(item['v']).strip()   # “第七卷”->“7”，用于列表按钮
+            if vs != item['v']:
+                item['vs'] = vs
+        if aid in built and not item['l']:   # 重制版仅用于没有蓝奏 EPUB 源的条目
+            item['b'] = 1
+        items.append({k: v for k, v in item.items() if v != ''})
+    only_built = {it['n']: built[it['n']] for it in items if it.get('b')}
+    prefix = _prefix
+    if not prefix and os.path.exists(DL_FILE):   # 未运行 merge() 时（如仅重新生成页面）从 dl.txt 读取
+        with open(DL_FILE, 'r', encoding='utf-8') as f:
+            prefix = f.readline().split('：')[-1].strip()
+    lz = 'https://' + prefix.rstrip('/') + '/'
+    return {'items': items, 'built': only_built, 'lz': lz, 'gh': GH_PROXY}
+
+def create_html():
+    with open(TEMPLATE_FILE, 'r', encoding='utf-8') as f:
+        tpl = f.read()
+    data = json.dumps(create_data(), ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')
+    html = tpl.replace('__DATE__', time.strftime('%Y-%m-%d', time.localtime())).replace('__DATA__', data)
     with open(MERGED_HTML, 'w', encoding='utf-8') as f:
         f.write(html)
-
-def create_table_epub(df):
-    rows = []
-    for _, row in df.iterrows():
-        _l, _m, _a, _dll, _at, _v, _r = row['novel_link'], row['main'], row['alt'], row['dl_label'], row['author'], row['volume'], row['dl_remark']
-        novel_link = None if pd.isna(_l) else _l
-        title_html = f'<a href="{novel_link}" target="_blank">{_m}</a>' if novel_link else _m
-        alt_html = '' if pd.isna(_a) else f"<span class='at'>{_a}</span>"
-        volume = '' if pd.isna(_v) else f'({_v})'
-        remark = '' if pd.isna(_r) else f" <span class='bt'>{_r}</span>"
-        lz_dl = '' if pd.isna(_dll) else f"<a href='https://{_prefix}/{_dll}' target='_blank'>{volume}</a>{remark}"
-        author = '' if pd.isna(_at) else _at
-        rows.append(
-            f"<tr><td>{title_html}{alt_html}</td>"
-            f"<td class='au'>{author}</td><td>{lz_dl}</td><td>{row['dl_pwd']}</td>"
-            f"<td class='yd'>{row['update']}</td></tr>"
-        )
-    return ''.join(rows)
-
-def create_html_epub():
-    df = pd.read_csv(MERGED_CSV, encoding='utf-8-sig')
-    df = df[df['dl_label'].notna()]
-    table = create_table_epub(df)
-    today = time.strftime('%Y-%m-%d', time.localtime())
-    html = (
-        '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">'
-        '<meta name="viewport"content="width=device-width,initial-scale=1.0">'
-        '<meta name="keywords"content="轻小说,sf轻小说,dmzj轻小说,日本轻小说,动漫小说,轻小说电子书,轻小说EPUB下载">'
-        '<meta name="description"content="轻小说文库 EPUB 下载，支持搜索关键字、跳转至源站和蓝奏云下载，已进行移动端适配。">'
-        '<meta name="author"content="mojimoon"><title>轻小说文库 EPUB 下载</title>'
-        f'<link rel="icon" type="image/svg+xml" href="{FAVICON}">'
-        f'<link rel="stylesheet"href="{TAG_CDN}style.css"></head><body>'
-        '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载</h1>'
-        f'<h4>({today}) <a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {SHIELDS}</h4>'
-        '<span>所有内容均收集于网络，仅供学习交流使用。'
-        '特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=utf-8">酷儿加冰</a> 整理。括号内为最新卷数。</span>'
-        '<div class="right-controls"><a href="./index.html">'
-        '<button class="btn"id="gotoButton">切换到 EPUB/TXT 源，内容更全</button></a>'
-        '<button class="btn"id="themeToggle">主题</button>'
-        '<button class="btn"id="clearInput">清除</button></div>'
-        '<div class="search-bar"><input type="text"id="searchInput"placeholder="搜索标题或作者">'
-        '<button class="btn"id="randomButton">随机</button></div>'
-        '<table><thead><tr><th>标题</th><th>作者</th><th>蓝奏</th><th>密码</th><th>更新</th></tr>'
-        '</thead><tbody id="novelTableBody">'
-        f'{table}</tbody></table>'
-        f'<script src="{TAG_CDN}script_merged.js"></script>'
-        '</body></html>'
-    )
-    with open(EPUB_HTML, 'w', encoding='utf-8') as f:
-        f.write(html)
+    # 旧版「仅 EPUB」页面已合并，保留跳转以兼容旧链接
+    with open(os.path.join(PUBLIC_DIR, 'epub.html'), 'w', encoding='utf-8') as f:
+        f.write('<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">'
+                '<meta http-equiv="refresh" content="0;url=./index.html?f=epub"><title>轻小说文库 EPUB 下载</title></head>'
+                '<body><a href="./index.html?f=epub">前往新版页面</a></body></html>')
 
 def main():
     if not os.path.exists(OUT_DIR):
@@ -612,12 +426,11 @@ def main():
     
     scrape()
     merge()
-    create_html_merged()
-    create_html_epub()
+    create_html()
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:
         _scraper = sys.argv[1]
-    if len(sys.argv) > 2:
-        _timeout = int(sys.argv[2])
+        if _scraper not in ('none', 'auto', *LEVELS):
+            sys.exit(f"Unknown scraper: {_scraper} (可选: none, auto, {', '.join(LEVELS)})")
     main()

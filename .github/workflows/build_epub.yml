@@ -1,0 +1,66 @@
+name: Build EPUB
+
+# 为「仅 TXT 源」的小说从 wenku8 重新抓取并生成分卷 EPUB，上传到 Release（epub-NN）。
+# 状态记录在 out/epub_index.json：仅当 TXT 源有更新时才会重新生成。
+on:
+  schedule:
+    - cron: '0 20 * * *'
+  workflow_dispatch:
+    inputs:
+      max_novels:
+        description: '本次最多处理的小说数（0=不限，受时间预算约束）'
+        type: number
+        default: 150
+      aid:
+        description: '只处理指定 aid（空格分隔，留空=自动选择）'
+        type: string
+        default: ''
+  push:
+    branches: [beta]
+    paths: [.github/workflows/build_epub.yml]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-epub
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Setup cookie
+        run: echo "${{ secrets.WENKU_COOKIES }}" > COOKIE
+
+      - name: Build
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            ARGS="--max-novels 3"                      # 推送触发：仅做冒烟测试
+          elif [ -n "${{ inputs.aid }}" ]; then
+            ARGS="--aid ${{ inputs.aid }}"
+          else
+            ARGS="--max-novels ${{ inputs.max_novels || 150 }} --time-budget 300"
+          fi
+          python build_batch.py --scraper curl_cffi $ARGS
+
+      - name: Commit index
+        if: always()
+        run: |
+          git config user.name "mojimoon"
+          git config user.email "109803649+mojimoon@users.noreply.github.com"
+          git add out/epub_index.json
+          git diff --staged --quiet || git commit -m "chore: update epub index on $(date +'%Y-%m-%d %H:%M:%S') [skip ci]"
+          git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}"

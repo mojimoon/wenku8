@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="keywords" content="轻小说,日本轻小说,轻小说电子书,轻小说EPUB下载,轻小说文库">
+<meta name="description" content="轻小说文库 EPUB 下载：收录蓝奏云 EPUB、GitHub TXT 源与自动生成的带插图分卷 EPUB，支持搜索与移动端浏览。">
+<meta name="author" content="mojimoon">
+<title>轻小说文库 EPUB 下载</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z'/%3E%3C/svg%3E">
+<script>
+// 在渲染前设置主题，避免闪烁
+try{var t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t}catch(e){}
+</script>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--fg:#1b1f24;--muted:#6b7280;--line:#e5e7eb;--acc:#2563eb;--acc-fg:#fff;--hover:#f0f4ff;
+--p-epub:#16a34a;--p-new:#9333ea;--p-txt:#6b7280;--shadow:0 1px 2px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.04)}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#111317;--card:#1a1d23;--fg:#e6e8eb;--muted:#9aa3af;--line:#2a2f37;--acc:#6ea0ff;--acc-fg:#0b0d10;--hover:#212733;--p-epub:#4ade80;--p-new:#c084fc;--p-txt:#9aa3af;--shadow:none}}
+:root[data-theme=dark]{--bg:#111317;--card:#1a1d23;--fg:#e6e8eb;--muted:#9aa3af;--line:#2a2f37;--acc:#6ea0ff;--acc-fg:#0b0d10;--hover:#212733;--p-epub:#4ade80;--p-new:#c084fc;--p-txt:#9aa3af;--shadow:none}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+a{color:var(--acc);text-decoration:none}a:hover{text-decoration:underline}
+.wrap{max-width:980px;margin:0 auto;padding:0 12px 48px}
+header{padding:20px 0 8px;display:flex;align-items:flex-start;gap:12px}
+header h1{flex:1;margin:0;font-size:1.5rem;line-height:1.3;cursor:pointer}
+header p{margin:4px 0 0;color:var(--muted);font-size:.85rem}
+.ib{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:8px;height:36px;min-width:36px;padding:0 10px;cursor:pointer;font:inherit}
+.ib:hover{background:var(--hover)}
+.tools{position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0;display:flex;flex-wrap:wrap;gap:8px}
+.tools input[type=search]{flex:1 1 220px;min-width:0;height:38px;padding:0 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);font:inherit}
+.tools input:focus{outline:2px solid var(--acc);outline-offset:-1px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chip{height:32px;padding:0 12px;border:1px solid var(--line);border-radius:16px;background:var(--card);color:var(--fg);cursor:pointer;font:inherit;font-size:.85rem}
+.chip[aria-pressed=true]{background:var(--acc);border-color:var(--acc);color:var(--acc-fg)}
+.cnt{margin-left:auto;color:var(--muted);font-size:.8rem}
+ul.list{list-style:none;margin:8px 0 0;padding:0;background:var(--card);border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+.list li{display:grid;grid-template-columns:minmax(0,1fr) 9rem 6rem auto;gap:4px 12px;align-items:center;padding:9px 14px;border-top:1px solid var(--line);cursor:pointer}
+.list li:first-child{border-top:0}
+.list li:hover{background:var(--hover)}
+.m{min-width:0}.m b{font-weight:600;overflow-wrap:anywhere}
+.m small{display:block;color:var(--muted);font-size:.78rem;overflow-wrap:anywhere}
+.au,.u{color:var(--muted);font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.b{display:flex;gap:4px;justify-content:flex-end;min-width:7.5rem}
+.p{font-style:normal;font-size:.7rem;line-height:1;padding:3px 6px;border-radius:4px;border:1px solid currentColor;white-space:nowrap}
+.p.e{color:var(--p-epub)}.p.n{color:var(--p-new)}.p.t{color:var(--p-txt)}
+.empty{padding:40px 0;text-align:center;color:var(--muted)}
+#more{height:1px}
+footer{margin-top:24px;color:var(--muted);font-size:.8rem;text-align:center}
+dialog{width:min(560px,calc(100vw - 24px));max-height:calc(100vh - 24px);padding:0;border:0;border-radius:12px;background:var(--card);color:var(--fg);box-shadow:0 12px 48px rgba(0,0,0,.35)}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+.dh{display:flex;gap:8px;padding:16px 16px 8px}
+.dh h2{flex:1;margin:0;font-size:1.1rem;line-height:1.35;overflow-wrap:anywhere}
+.dh h2 small{display:block;font-weight:400;color:var(--muted);font-size:.8rem;margin-top:2px}
+.db{padding:4px 16px 16px;overflow:auto;max-height:calc(100vh - 110px)}
+.sec{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:10px}
+.sec h3{margin:0 0 6px;font-size:.9rem;display:flex;align-items:center;gap:6px}
+.sec p{margin:4px 0;color:var(--muted);font-size:.82rem}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--acc);background:var(--acc);color:var(--acc-fg);font:inherit;font-size:.88rem;cursor:pointer;text-decoration:none!important}
+.btn.o{background:transparent;color:var(--acc)}
+.btn[disabled]{opacity:.5;cursor:default}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px}
+.vols{margin:6px 0;max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+.vols label{display:flex;gap:8px;align-items:center;padding:6px 10px;border-top:1px solid var(--line);cursor:pointer;font-size:.88rem}
+.vols label:first-child{border-top:0}
+.vols label span{flex:1;min-width:0;overflow-wrap:anywhere}
+.vols label em{font-style:normal;color:var(--muted);font-size:.78rem}
+.vols a{font-size:.8rem}
+code{background:var(--hover);padding:1px 6px;border-radius:4px}
+@media(max-width:640px){
+ body{font-size:14px}
+ header{padding-top:14px}header h1{font-size:1.2rem}
+ .list li{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"m b" "au u";padding:7px 10px;gap:2px 8px}
+ .m{grid-area:m}.b{grid-area:b;min-width:0}.au{grid-area:au;font-size:.75rem}.u{grid-area:u;font-size:.75rem;text-align:right}
+ .m b{font-size:.92rem}.m small{font-size:.7rem}
+ .chip{height:28px;padding:0 9px;font-size:.78rem}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+ <div>
+  <h1 id="home">轻小说文库 EPUB 下载</h1>
+  <p>更新于 __DATE__ · <a href="https://github.com/mojimoon/wenku8" target="_blank" rel="noopener">mojimoon/wenku8</a> · 内容收集自网络，仅供学习交流</p>
+ </div>
+ <button class="ib" id="theme" title="切换主题" aria-label="切换主题">◐</button>
+</header>
+<div class="tools">
+ <input type="search" id="q" placeholder="搜索标题或作者" autocomplete="off" aria-label="搜索">
+ <div class="chips" id="chips">
+  <button class="chip" data-f="all" aria-pressed="true">全部</button>
+  <button class="chip" data-f="epub" aria-pressed="false">蓝奏 EPUB</button>
+  <button class="chip" data-f="new" aria-pressed="false">重制 EPUB</button>
+  <button class="chip" data-f="txt" aria-pressed="false">仅 TXT</button>
+  <button class="chip" id="rnd" title="随机一本">随机</button>
+  <span class="cnt" id="cnt"></span>
+ </div>
+</div>
+<ul class="list" id="list"></ul>
+<div id="more"></div>
+<footer>特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=utf-8" target="_blank" rel="noopener">酷儿加冰</a> 与 <a href="https://github.com/ixinzhi" target="_blank" rel="noopener">布客新知</a> 整理。<br>蓝奏 EPUB 为 Calibre 生成（括号内为最新卷数）；TXT 源为纯文本 EPUB，无样式与插图，可由「重制 EPUB」替代。</footer>
+</div>
+
+<dialog id="dlg">
+ <div class="dh"><h2 id="dt"></h2><button class="ib" id="dx" aria-label="关闭">✕</button></div>
+ <div class="db" id="db"></div>
+</dialog>
+
+<script type="application/json" id="data">__DATA__</script>
+<script>
+(function(){
+'use strict';
+var D=JSON.parse(document.getElementById('data').textContent),
+    items=D.items,built=D.built,LZ=D.lz,GH=D.gh,
+    $=function(i){return document.getElementById(i)},
+    list=$('list'),CH=60,shown=0,view=items,flt='all',q='';
+var esc=function(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
+var norm=function(s){return s.toLowerCase().replace(/[\s　]+/g,'')};
+items.forEach(function(it,i){it.i=i;it.s=norm(it.t+(it.a||'')+(it.au||''))});
+
+function applyFilter(){
+ view=items.filter(function(it){
+  if(flt==='epub'&&!it.l)return false;
+  if(flt==='new'&&!it.b)return false;
+  if(flt==='txt'&&(it.l||!it.x))return false;
+  return !q||it.s.indexOf(q)>-1;
+ });
+ $('cnt').textContent=view.length+' / '+items.length;
+ list.textContent='';shown=0;
+ if(!view.length){list.innerHTML='<li class="empty" style="display:block;cursor:default">没有匹配的结果</li>';return}
+ more();
+}
+function badges(it){
+ var h='';
+ if(it.l)h+='<i class="p e">EPUB'+(it.v?' '+esc(it.v):'')+'</i>';
+ if(it.b)h+='<i class="p n">重制</i>';
+ if(it.x)h+='<i class="p t">TXT</i>';
+ return h;
+}
+function more(){
+ var end=Math.min(shown+CH,view.length),h='';
+ for(var k=shown;k<end;k++){var it=view[k];
+  h+='<li data-i="'+it.i+'"><div class="m"><b>'+esc(it.t)+'</b>'+(it.a?'<small>'+esc(it.a)+'</small>':'')+'</div><div class="au">'+esc(it.au||'')+'</div><div class="u">'+esc(it.u||'')+'</div><div class="b">'+badges(it)+'</div></li>';
+ }
+ list.insertAdjacentHTML('beforeend',h);shown=end;
+}
+new IntersectionObserver(function(e){if(e[0].isIntersecting&&shown<view.length)more()},{rootMargin:'600px'}).observe($('more'));
+
+// ── 搜索 / 筛选 ──
+var timer;
+$('q').addEventListener('input',function(){clearTimeout(timer);var v=this.value;timer=setTimeout(function(){q=norm(v);applyFilter()},120)});
+$('chips').addEventListener('click',function(e){
+ var b=e.target.closest('.chip');if(!b||!b.dataset.f)return;
+ flt=b.dataset.f;[].forEach.call(this.querySelectorAll('.chip[data-f]'),function(c){c.setAttribute('aria-pressed',c===b)});
+ applyFilter();
+});
+$('rnd').addEventListener('click',function(){var it=view[Math.floor(Math.random()*view.length)];if(it)open(it)});
+$('home').addEventListener('click',function(){location.href=location.pathname});
+
+// ── 主题 ──
+$('theme').addEventListener('click',function(){
+ var r=document.documentElement,dark=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme:dark)').matches;
+ r.dataset.theme=dark?'light':'dark';try{localStorage.setItem('theme',r.dataset.theme)}catch(e){}
+});
+
+// ── 下载弹窗 ──
+var dlg=$('dlg'),cur=null;
+var pad=function(n){return(n<10?'0':'')+n};
+var proxy=function(u){return GH+encodeURI(u)};
+function volUrl(aid,tag,f){return proxy('https://github.com/mojimoon/wenku8/releases/download/'+tag+'/'+aid+'-'+f)}
+function fmt(b){return b>=1048576?(b/1048576).toFixed(1)+' MB':Math.max(1,Math.round(b/1024))+' KB'}
+function download(urls){urls.forEach(function(u,i){setTimeout(function(){
+ var a=document.createElement('a');a.href=u;a.rel='noopener';document.body.appendChild(a);a.click();a.remove()},i*700)})}
+
+function open(it){
+ cur=it;var h='',b=it.n&&built[it.n];
+ $('dt').innerHTML=esc(it.t)+'<small>'+esc([it.a,it.au,it.u].filter(Boolean).join(' · '))+'</small>';
+ if(it.l){
+  h+='<div class="sec"><h3><i class="p e">EPUB</i> 蓝奏云'+(it.v?'（'+esc(it.v)+'）':'')+'</h3>'
+   +(it.r?'<p>'+esc(it.r)+'</p>':'')
+   +'<div class="row"><a class="btn" target="_blank" rel="noopener" href="'+esc(LZ+it.l)+'">打开下载页</a>'
+   +(it.p?'<span>密码 <code id="pwd">'+esc(it.p)+'</code></span><button class="btn o" data-copy="1">复制</button>':'')+'</div></div>';
+ }
+ if(b){
+  h+='<div class="sec"><h3><i class="p n">重制</i> 带插图的分卷 EPUB</h3><p>由程序从源站重新生成：含封面、插图、分卷目录与简介。</p><div class="vols" id="vols">';
+  b.v.forEach(function(v,k){h+='<label><input type="checkbox" value="'+k+'" checked><span>'+esc(v[1])+'</span><em>'+fmt(v[2])+'</em><a href="'+esc(volUrl(it.n,b.t,v[0]))+'" onclick="event.stopPropagation()">下载</a></label>'});
+  h+='</div><div class="row"><button class="btn" data-dl="sel">下载所选</button>'
+   +(b.v.length>1?'<label style="font-size:.85rem"><input type="checkbox" id="all" checked> 全选</label>':'')+'</div>'
+   +(b.v.length>1?'<p>多卷将依次下载，如被浏览器拦截请允许“多个文件下载”。</p>':'')+'</div>';
+ }
+ if(it.x){
+  h+='<div class="sec"><h3><i class="p t">TXT</i> 纯文本 EPUB（GitHub 源）</h3>'
+   +'<p>'+(b?'质量较低，无样式与插图，建议使用上方重制版。':'无样式与插图。'+(it.n?'带插图的重制版尚未生成。':''))+'</p>'
+   +'<div class="row"><a class="btn o" href="'+esc(proxy('https://raw.githubusercontent.com/'+it.x))+'">下载</a></div></div>';
+ }
+ if(it.n)h+='<div class="row" style="margin-top:12px"><a href="https://www.wenku8.net/book/'+it.n+'.htm" target="_blank" rel="noopener">在轻小说文库查看 ↗</a></div>';
+ $('db').innerHTML=h;
+ if(!dlg.open)dlg.showModal();
+}
+$('list').addEventListener('click',function(e){var li=e.target.closest('li[data-i]');if(li)open(items[li.dataset.i])});
+$('dx').addEventListener('click',function(){dlg.close()});
+dlg.addEventListener('click',function(e){if(e.target===dlg)dlg.close()});
+$('db').addEventListener('click',function(e){
+ var t=e.target;
+ if(t.dataset.copy){try{navigator.clipboard.writeText($('pwd').textContent);t.textContent='已复制'}catch(x){}}
+ if(t.dataset.dl){
+  var b=built[cur.n],sel=[].filter.call($('vols').querySelectorAll('input:checked'),Boolean).map(function(c){return volUrl(cur.n,b.t,b.v[c.value][0])});
+  if(sel.length)download(sel);
+ }
+ if(t.id==='all'){[].forEach.call($('vols').querySelectorAll('input'),function(c){c.checked=t.checked})}
+});
+
+// ?f=epub|new|txt 预设筛选（兼容旧版 epub.html）
+var pf=new URLSearchParams(location.search).get('f');
+if(pf&&document.querySelector('.chip[data-f="'+pf+'"]'))document.querySelector('.chip[data-f="'+pf+'"]').click();else applyFilter();
+})();
+</script>
+</body>
+</html>

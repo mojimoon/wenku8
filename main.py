@@ -17,10 +17,6 @@ params = { 'keyword': '8691', 'charset': 'utf-8', 'page': 1 }
 # 命令行: python main.py [scraper]。以 _scraper 起步，失败时自动向后升级（curl_cffi -> playwright -> steel）
 _scraper = 'curl_cffi'
 DOMAIN = 'https://www.wenku8.net'
-CDN_PREFIX = 'https://cdn.jsdmirror.com/gh/'
-LATEST_CDN = f'{CDN_PREFIX}mojimoon/wenku8@main/docs/'
-TAG_CDN = f'{CDN_PREFIX}mojimoon/wenku8@v1/docs/'
-FAVICON = f'{CDN_PREFIX}mojimoon/mojimoon.github.io@v3/favicon.svg'
 OUT_DIR = 'out'
 PUBLIC_DIR = 'docs'
 COOKIE_FILE = os.path.join(os.path.dirname(__file__), 'COOKIE')
@@ -28,7 +24,6 @@ POST_LIST_FILE = os.path.join(OUT_DIR, 'post_list.csv')
 TXT_LIST_FILE = os.path.join(OUT_DIR, 'txt_list.csv')
 DL_FILE = os.path.join(OUT_DIR, 'dl.txt')
 MERGED_CSV = os.path.join(OUT_DIR, 'merged.csv')
-EPUB_HTML = os.path.join(PUBLIC_DIR, 'epub.html')
 MERGED_HTML = os.path.join(PUBLIC_DIR, 'index.html')
 
 _fetcher = None
@@ -350,114 +345,74 @@ def merge():
     df_txt.to_csv(MERGED_CSV, index=False, encoding='utf-8-sig')
 
 # ========== HTML Generation ==========
-# STARME = '<iframe style="margin-left: 2px; margin-bottom:-5px;" frameborder="0" scrolling="0" width="81px" height="20px" src="https://ghbtns.com/github-btn.html?user=mojimoon&repo=wenku8&type=star&count=true" ></iframe>'
-SHIELDS = '<a href="https://github.com/mojimoon/wenku8" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/github/stars/mojimoon/wenku8?style=social" alt="GitHub stars" style="height: 20px;" /></a>'
+GH_PROXY = 'https://gh-proxy.org/'   # 所有 GitHub 下载统一走该代理（页面内拼接）
+RAW_PREFIX = 'https://raw.githubusercontent.com/'
+TEMPLATE_FILE = os.path.join('source', 'template.html')
+TXT_META_CSV = os.path.join(OUT_DIR, 'txt_meta.csv')
+EPUB_INDEX_FILE = os.path.join(OUT_DIR, 'epub_index.json')
+CATALOG_FILE = os.path.join(OUT_DIR, 'wenku_catalog.json')
 
-BUTTONS_CDN = f'{CDN_PREFIX}buttons/github-buttons@v2.33.0/dist/buttons.min.js' # async defer
-BUTTONS_HTML = '<a class="github-button" href="https://github.com/mojimoon/wenku8" data-color-scheme="no-preference: light; light: light; dark: dark;" data-icon="octicon-star" data-size="large" data-show-count="true" aria-label="Star mojimoon/wenku8 on GitHub">Star</a>'
+def _s(v):
+    """NaN/None -> ''，其余转 str 并去空白"""
+    return '' if v is None or (isinstance(v, float) and pd.isna(v)) else str(v).strip()
 
-def create_table_merged(df):
-    rows = []
-    for _, row in df.iterrows():
-        _l, _m, _a, _txt, _dll, _u, _at, _v, _r = row['novel_link'], row['main'], row['alt'], row['download_url'], row['dl_label'], row['update'], row['author'], row['volume'], row['dl_remark']
-        novel_link = None if pd.isna(_l) else _l
-        title_html = f'<a href="{novel_link}" target="_blank">{_m}</a>' if novel_link else _m
-        alt_html = '' if pd.isna(_a) else f"<span class='at'>{_a}</span>"
-        txt_dl = '' if pd.isna(_txt) else f"<a href='{_txt}' target='_blank'>下载</a> <a href='https://ghfast.top/{_txt}' target='_blank'>镜像</a>"
-        volume = '' if pd.isna(_v) else f'({_v})'
-        remark = '' if pd.isna(_r) else f" <span class='bt'>{_r}</span>"
-        lz_dl = '' if pd.isna(_dll) else f"<a href='https://{_prefix}{_dll}' target='_blank'>{volume}</a>{remark}"
-        date = '' if pd.isna(_u) else _u
-        author = '' if pd.isna(_at) else _at
-        lz_pwd = '' if pd.isna(_dll) else row['dl_pwd']
-        rows.append(
-            f"<tr><td>{title_html}{alt_html}</td>"
-            f"<td class='au'>{author}</td><td>{lz_dl}</td><td>{lz_pwd}</td>"
-            f"<td class='dl'>{txt_dl}</td><td class='yd'>{date}</td></tr>"
-        )
-    return ''.join(rows)
+def create_data():
+    """合并后的条目 + 重制版 EPUB 索引 -> 页面内嵌的 JSON 数据。"""
+    df = pd.read_csv(MERGED_CSV, encoding='utf-8-sig', dtype=str)
 
-def create_html_merged():
-    df = pd.read_csv(MERGED_CSV, encoding='utf-8-sig')
-    table = create_table_merged(df)
-    today = time.strftime('%Y-%m-%d', time.localtime())
-    html = (
-        '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">'
-        '<meta name="viewport"content="width=device-width,initial-scale=1.0">'
-        '<meta name="keywords"content="轻小说,sf轻小说,dmzj轻小说,日本轻小说,动漫小说,轻小说电子书,轻小说EPUB下载">'
-        '<meta name="description"content="轻小说文库 EPUB 下载，支持搜索关键字、跳转至源站和蓝奏云下载，已进行移动端适配。">'
-        '<meta name="author"content="mojimoon"><title>轻小说文库 EPUB 下载+</title>'
-        f'<link rel="icon" type="image/svg+xml" href="{FAVICON}">'
-        f'<link rel="stylesheet"href="{TAG_CDN}style.css"></head><body>'
-        '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载+</h1>'
-        f'<h4>({today}) <a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {SHIELDS}</h4>'
-        '<span>所有内容均收集于网络，仅供学习交流使用。'
-        '特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=utf-8">酷儿加冰</a> 和 <a href="https://github.com/ixinzhi">布客新知</a> 整理。</span>'
-        '<span class="at">最新为 Calibre 生成 EPUB，括号内为最新卷数；年更为纯文本 EPUB。</span>'
-        '<div class="right-controls"><a href="./epub.html">'
-        '<button class="btn"id="gotoButton">切换到仅 EPUB 源，加载更快</button></a>'
-        '<button class="btn"id="themeToggle">主题</button>'
-        '<button class="btn"id="clearInput">清除</button></div>'
-        '<div class="search-bar"><input type="text"id="searchInput"placeholder="搜索标题或作者">'
-        '<button class="btn"id="randomButton">随机</button></div>'
-        '<table><thead><tr><th>标题</th><th>作者</th><th>最新</th><th>密码</th><th>年更</th><th>更新</th></tr>'
-        '</thead><tbody id="novelTableBody">'
-        f'{table}</tbody></table>'
-        f'<script src="{TAG_CDN}script_merged.js"></script>'
-        '</body></html>'
-    )
+    # 仅 TXT 源条目通过 txt_meta.csv 补全 wenku8 的 aid
+    txt_aid = {}
+    if os.path.exists(TXT_META_CSV):
+        meta = pd.read_csv(TXT_META_CSV, encoding='utf-8-sig', dtype=str)
+        txt_aid = dict(zip(meta['download_url'], meta['aid']))
+
+    # 蓝奏条目常缺作者：用 wenku8 全站目录（fill_meta.py 生成）按 aid 补全
+    cat_author = {}
+    if os.path.exists(CATALOG_FILE):
+        with open(CATALOG_FILE, 'r', encoding='utf-8') as f:
+            for page in json.load(f)['pages'].values():
+                for it in page:
+                    cat_author[str(it['aid'])] = it.get('author', '')
+
+    built = {}
+    if os.path.exists(EPUB_INDEX_FILE):
+        with open(EPUB_INDEX_FILE, 'r', encoding='utf-8') as f:
+            for aid, e in json.load(f).items():
+                if e.get('volumes') and e.get('tag'):
+                    built[aid] = {'t': e['tag'], 'v': [[v['file'], v['title'], v['size']] for v in e['volumes']]}
+
+    items = []
+    for row in df.to_dict('records'):
+        link, txt = _s(row['novel_link']), _s(row['download_url'])
+        m = re.search(r'/book/(\d+)', link)
+        aid = m.group(1) if m else txt_aid.get(txt, '')
+        item = {'t': _s(row['main']), 'a': _s(row['alt']), 'au': _s(row['author']) or cat_author.get(aid, ''), 'u': _s(row['update']),
+                'n': aid, 'l': _s(row['dl_label']), 'p': _s(row['dl_pwd']), 'v': _s(row['volume']),
+                'r': _s(row['dl_remark']),
+                'x': txt[len(RAW_PREFIX):] if txt.startswith(RAW_PREFIX) else txt}
+        if aid in built and not item['l']:   # 重制版仅用于没有蓝奏 EPUB 源的条目
+            item['b'] = 1
+        items.append({k: v for k, v in item.items() if v != ''})
+    only_built = {it['n']: built[it['n']] for it in items if it.get('b')}
+    prefix = _prefix
+    if not prefix and os.path.exists(DL_FILE):   # 未运行 merge() 时（如仅重新生成页面）从 dl.txt 读取
+        with open(DL_FILE, 'r', encoding='utf-8') as f:
+            prefix = f.readline().split('：')[-1].strip()
+    lz = 'https://' + prefix.rstrip('/') + '/'
+    return {'items': items, 'built': only_built, 'lz': lz, 'gh': GH_PROXY}
+
+def create_html():
+    with open(TEMPLATE_FILE, 'r', encoding='utf-8') as f:
+        tpl = f.read()
+    data = json.dumps(create_data(), ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')
+    html = tpl.replace('__DATE__', time.strftime('%Y-%m-%d', time.localtime())).replace('__DATA__', data)
     with open(MERGED_HTML, 'w', encoding='utf-8') as f:
         f.write(html)
-
-def create_table_epub(df):
-    rows = []
-    for _, row in df.iterrows():
-        _l, _m, _a, _dll, _at, _v, _r = row['novel_link'], row['main'], row['alt'], row['dl_label'], row['author'], row['volume'], row['dl_remark']
-        novel_link = None if pd.isna(_l) else _l
-        title_html = f'<a href="{novel_link}" target="_blank">{_m}</a>' if novel_link else _m
-        alt_html = '' if pd.isna(_a) else f"<span class='at'>{_a}</span>"
-        volume = '' if pd.isna(_v) else f'({_v})'
-        remark = '' if pd.isna(_r) else f" <span class='bt'>{_r}</span>"
-        lz_dl = '' if pd.isna(_dll) else f"<a href='https://{_prefix}/{_dll}' target='_blank'>{volume}</a>{remark}"
-        author = '' if pd.isna(_at) else _at
-        rows.append(
-            f"<tr><td>{title_html}{alt_html}</td>"
-            f"<td class='au'>{author}</td><td>{lz_dl}</td><td>{row['dl_pwd']}</td>"
-            f"<td class='yd'>{row['update']}</td></tr>"
-        )
-    return ''.join(rows)
-
-def create_html_epub():
-    df = pd.read_csv(MERGED_CSV, encoding='utf-8-sig')
-    df = df[df['dl_label'].notna()]
-    table = create_table_epub(df)
-    today = time.strftime('%Y-%m-%d', time.localtime())
-    html = (
-        '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">'
-        '<meta name="viewport"content="width=device-width,initial-scale=1.0">'
-        '<meta name="keywords"content="轻小说,sf轻小说,dmzj轻小说,日本轻小说,动漫小说,轻小说电子书,轻小说EPUB下载">'
-        '<meta name="description"content="轻小说文库 EPUB 下载，支持搜索关键字、跳转至源站和蓝奏云下载，已进行移动端适配。">'
-        '<meta name="author"content="mojimoon"><title>轻小说文库 EPUB 下载</title>'
-        f'<link rel="icon" type="image/svg+xml" href="{FAVICON}">'
-        f'<link rel="stylesheet"href="{TAG_CDN}style.css"></head><body>'
-        '<h1 onclick="window.location.reload()">轻小说文库 EPUB 下载</h1>'
-        f'<h4>({today}) <a href="https://github.com/mojimoon">mojimoon</a>/<a href="https://github.com/mojimoon/wenku8">wenku8</a> {SHIELDS}</h4>'
-        '<span>所有内容均收集于网络，仅供学习交流使用。'
-        '特别感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=utf-8">酷儿加冰</a> 整理。括号内为最新卷数。</span>'
-        '<div class="right-controls"><a href="./index.html">'
-        '<button class="btn"id="gotoButton">切换到 EPUB/TXT 源，内容更全</button></a>'
-        '<button class="btn"id="themeToggle">主题</button>'
-        '<button class="btn"id="clearInput">清除</button></div>'
-        '<div class="search-bar"><input type="text"id="searchInput"placeholder="搜索标题或作者">'
-        '<button class="btn"id="randomButton">随机</button></div>'
-        '<table><thead><tr><th>标题</th><th>作者</th><th>蓝奏</th><th>密码</th><th>更新</th></tr>'
-        '</thead><tbody id="novelTableBody">'
-        f'{table}</tbody></table>'
-        f'<script src="{TAG_CDN}script_merged.js"></script>'
-        '</body></html>'
-    )
-    with open(EPUB_HTML, 'w', encoding='utf-8') as f:
-        f.write(html)
+    # 旧版「仅 EPUB」页面已合并，保留跳转以兼容旧链接
+    with open(os.path.join(PUBLIC_DIR, 'epub.html'), 'w', encoding='utf-8') as f:
+        f.write('<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">'
+                '<meta http-equiv="refresh" content="0;url=./?f=epub"><title>轻小说文库 EPUB 下载</title></head>'
+                '<body><a href="./?f=epub">前往新版页面</a></body></html>')
 
 def main():
     if not os.path.exists(OUT_DIR):
@@ -467,8 +422,7 @@ def main():
     
     scrape()
     merge()
-    create_html_merged()
-    create_html_epub()
+    create_html()
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:

@@ -1,18 +1,8 @@
-# 轻小说文库 EPUB 下载 - [wenku.mojimoon.top](https://wenku.mojimoon.top)
-
-An automated crawler and static site generator for light novel ebooks from [轻小说文库](https://www.wenku8.net), featuring multiple download sources, daily updates, and GitHub Actions deployment with [Steel](https://steel.dev). 
-
----
-
-[![Deploy](https://github.com/mojimoon/wenku8/actions/workflows/deploy.yml/badge.svg)](https://github.com/mojimoon/wenku8/actions/workflows/deploy.yml) [![Scrape and Update](https://github.com/mojimoon/wenku8/actions/workflows/scrape.yml/badge.svg)](https://github.com/mojimoon/wenku8/actions/workflows/scrape.yml)
-
-自动化从 [轻小说文库](https://www.wenku8.net) 获取 EPUB 格式电子书，并将结果整合为网页呈现：
-
-- [wenku.mojimoon.top](https://wenku.mojimoon.top)：EPUB 源 + TXT 源
-    - 内容全面，但条目数多，可能加载较慢
-    - 特别感谢 [布客新知](https://github.com/ixinzhi) 整理 
-- [wenku.mojimoon.top/epub.html](https://wenku.mojimoon.top/epub.html)：EPUB 源
-    - 仅包含 EPUB 源，适合移动端浏览
+# 轻小说文库 EPUB 下载 - [wenku.mojimoon.top](https://wenku.mojimoon.top)：单页展示全部条目，支持搜索、筛选与移动端浏览
+    - **蓝奏 EPUB**：Calibre 生成，来自论坛整理
+    - **重制 EPUB**：对仅有 TXT 源的小说，由 GitHub Actions 从 wenku8 重新抓取生成（含封面、插图、分卷目录），按卷下载
+    - **TXT 源**：纯文本 EPUB（无样式、无插图），特别感谢 [布客新知](https://github.com/ixinzhi) 整理
+    - 所有 GitHub 文件均通过 [gh-proxy.org](https://gh-proxy.org/) 下载
 
 ## Star History
 
@@ -77,6 +67,14 @@ jieqiUserCharset=utf-8; jieqiVisitId=...; ...
     - 输出：`out/merged.csv`
 - `create_html_merged(), create_html_epub()` 生成 HTML 文件
     - 输出：`public/index.html`, `public/epub.html`
+
+`fill_meta.py`（低频，一次性）：为仅有 TXT 源的小说补全 wenku8 的 aid 与元数据，输出 `out/txt_meta.csv`。
+
+`build_batch.py` / `gen_epub.py`（见 `.github/workflows/build_epub.yml`）：为这些小说按卷生成带插图的 EPUB 并上传到 Release（`epub-NN`），状态记录在 `out/epub_index.json`；仅当 TXT 源更新时才会重新生成。
+本地单本测试：`python gen_epub.py --aid 129`（整本）或 `--split`（按卷）。
+
+抓取层在 `utils/fetcher.py`，可切换方式：`requests` / `curl_cffi` / `playwright` / `steel`（`python main.py [scraper]`，默认 `curl_cffi`，失败自动升级）。
+GitHub Actions 的 IP 会被 Cloudflare 拦截，实测 `curl_cffi`、`patchright`、`camoufox`、Steel、WARP 可通过，普通 `requests` 与有头 Chromium 不行。
 
 此外，GitHub Actions 会每天自动运行 `main.py`，将 `public/` 目录提交到 `gh-pages` 分支并部署到 GitHub Pages。
 

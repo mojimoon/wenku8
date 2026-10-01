@@ -9,7 +9,7 @@
                -> out/wenku_detail.json
   输出: out/txt_meta.csv（已匹配）、out/txt_unmatched.csv（未匹配/歧义，供人工检查）
 
-爬虫方式: requests -> playwright -> steel，auto 模式下失败自动升级。
+爬虫方式见 utils/fetcher.py（requests / curl_cffi / playwright / steel），auto 模式下失败自动升级。
 
 用法:
     python fill_meta.py                       # auto: 从 requests 开始，失败升级
@@ -23,29 +23,20 @@ import argparse
 import csv
 import json
 import os
-import random
 import re
 import sys
-import time
 
 import pandas as pd
-import requests
 from bs4 import BeautifulSoup
 
-DOMAIN = 'https://www.wenku8.net'
+from utils import DOMAIN, LEVELS, Fetcher, FetchError, LoginExpired
+
 OUT_DIR = 'out'
-COOKIE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'COOKIE')
 MERGED_CSV = os.path.join(OUT_DIR, 'merged.csv')
 CATALOG_FILE = os.path.join(OUT_DIR, 'wenku_catalog.json')
 DETAIL_FILE = os.path.join(OUT_DIR, 'wenku_detail.json')
 META_CSV = os.path.join(OUT_DIR, 'txt_meta.csv')
 UNMATCHED_CSV = os.path.join(OUT_DIR, 'txt_unmatched.csv')
-
-# 注意：wenku8 的 Cloudflare 会对"完整浏览器 UA"弹 challenge，而简短的 Mozilla/5.0 可直接通过
-REQUESTS_UA = 'Mozilla/5.0'
-DELAY = (0.8, 1.8)       # 请求间隔（秒）
-LEVELS = ['requests', 'curl_cffi', 'playwright', 'steel']
-STEEL_TIMEOUT = 15 * 60  # Steel 会话最长存活秒数
 
 
 # ─── 工具 ───────────────────────────────────────────────
@@ -66,19 +57,6 @@ def save_json(path: str, data):
     os.replace(tmp, path)
 
 
-def read_cookie() -> dict:
-    if not os.path.exists(COOKIE_FILE):
-        return {}
-    with open(COOKIE_FILE, 'r', encoding='utf-8') as f:
-        line = f.readline().strip()
-    cookies = {}
-    for part in line.split(';'):
-        if '=' in part:
-            k, v = part.split('=', 1)
-            cookies[k.strip()] = v.strip()
-    return cookies
-
-
 def purify(text) -> str:
     """只保留中文、英文和数字（与 main.py 一致），并转小写。"""
     if not isinstance(text, str):
@@ -92,173 +70,6 @@ def split_alt(title: str) -> tuple[str, str]:
         i = title.rfind('(')
         return title[:i], title[i + 1:-1]
     return title, ''
-
-
-# ─── 抓取层 ─────────────────────────────────────────────
-
-
-class LoginExpired(RuntimeError):
-    pass
-
-
-class FetchError(RuntimeError):
-    pass
-
-
-class RateLimited(FetchError):
-    def __init__(self, retry_after: float = 0):
-        super().__init__('HTTP 429')
-        self.retry_after = retry_after
-
-
-def is_challenge(html: str) -> bool:
-    return 'Just a moment' in html[:2000] or ('Ray ID' in html and 'cloudflare' in html.lower() and len(html) < 20000)
-
-
-class Fetcher:
-    """requests -> playwright -> steel 逐级升级的抓取器。"""
-
-    def __init__(self, scraper: str = 'auto'):
-        self.cookies = read_cookie()
-        self.auto = scraper == 'auto'
-        self.level = 0 if self.auto else LEVELS.index(scraper)
-        self.session = requests.Session()
-        self.session.headers.update({'User-Agent': REQUESTS_UA, 'Referer': DOMAIN + '/'})
-        self.session.cookies.update(self.cookies)
-        self._cffi = None
-        self._pw = None
-        self._browser = None
-        self._context = None
-        self._steel = None  # (client, session_id)
-        self._last = 0.0
-        self._delay_scale = 1.0  # 触发 429 后放慢请求节奏
-
-    # --- 各级实现 ---
-
-    def _get_requests(self, url: str, encoding: str = 'utf-8', impersonate: bool = False) -> str:
-        if impersonate:
-            # curl_cffi 模拟 Chrome 的 TLS 指纹，可通过数据中心 IP（如 GitHub Actions）上的 Cloudflare 检测
-            if self._cffi is None:
-                from curl_cffi import requests as cffi
-                self._cffi = cffi.Session(impersonate='chrome', headers={'Referer': DOMAIN + '/'})
-                self._cffi.cookies.update(self.cookies)
-            resp = self._cffi.get(url, timeout=20, allow_redirects=True)
-        else:
-            resp = self.session.get(url, timeout=15, allow_redirects=True)
-        if '/login.php' in resp.url:
-            raise LoginExpired(f'被重定向到登录页，请更新 COOKIE: {resp.url}')
-        if resp.status_code == 429:
-            ra = resp.headers.get('Retry-After', '')
-            raise RateLimited(float(ra) if ra.isdigit() else 0)
-        if resp.status_code != 200:
-            raise FetchError(f'HTTP {resp.status_code}')
-        resp.encoding = encoding
-        return resp.text
-
-    def _open_context(self, steel: bool):
-        from playwright.sync_api import sync_playwright
-        if self._pw is None:
-            self._pw = sync_playwright().start()
-        if steel:
-            from steel import Steel
-            from dotenv import dotenv_values
-            key = dotenv_values().get('STEEL_API_KEY', '') or os.environ.get('STEEL_API_KEY', '')
-            if not key:
-                raise FetchError('缺少 STEEL_API_KEY')
-            client = Steel(steel_api_key=key)
-            sess = client.sessions.create(api_timeout=STEEL_TIMEOUT * 1000)
-            print(f'[INFO] Steel session: {sess.id}')
-            self._steel = (client, sess.id)
-            self._browser = self._pw.chromium.connect_over_cdp(
-                f'wss://connect.steel.dev?apiKey={key}&sessionId={sess.id}')
-            self._context = self._browser.contexts[0] if self._browser.contexts else self._browser.new_context()
-        else:
-            self._browser = self._pw.chromium.launch(
-                headless=True, args=['--no-sandbox', '--disable-setuid-sandbox'])
-            self._context = self._browser.new_context(user_agent=REQUESTS_UA)
-        if self.cookies:
-            self._context.add_cookies([
-                {'name': k, 'value': v, 'domain': 'www.wenku8.net', 'path': '/'}
-                for k, v in self.cookies.items()])
-
-    def _get_browser(self, url: str, steel: bool) -> str:
-        if self._context is None:
-            self._open_context(steel)
-        page = self._context.new_page()
-        try:
-            try:
-                page.goto(url, wait_until='domcontentloaded', timeout=30000)
-            except Exception as e:
-                print(f'[WARN] goto: {e}')
-            # 等待 Cloudflare challenge 通过
-            for _ in range(20):
-                if 'Just a moment' not in page.title():
-                    break
-                time.sleep(1)
-            if '/login.php' in page.url:
-                raise LoginExpired(f'被重定向到登录页，请更新 COOKIE: {page.url}')
-            return page.content()
-        finally:
-            page.close()
-
-    # --- 对外接口 ---
-
-    def get(self, url: str, validate=None, encoding: str = 'utf-8') -> str:
-        """抓取 url；validate(html)->bool 用于判断内容是否是期望页面。失败自动升级（auto 模式）。"""
-        wait = (DELAY[0] + random.random() * (DELAY[1] - DELAY[0])) * self._delay_scale - (time.time() - self._last)
-        if wait > 0:
-            time.sleep(wait)
-        try:
-            rl_count = 0
-            while True:
-                name = LEVELS[self.level]
-                last_err = None
-                attempt = 0
-                while attempt < 2:
-                    attempt += 1
-                    try:
-                        if name in ('requests', 'curl_cffi'):
-                            html = self._get_requests(url, encoding, impersonate=(name == 'curl_cffi'))
-                        else:
-                            html = self._get_browser(url, steel=(name == 'steel'))
-                        if is_challenge(html):
-                            raise FetchError('Cloudflare challenge')
-                        if validate and not validate(html):
-                            raise FetchError('页面内容不符合预期')
-                        return html
-                    except LoginExpired:
-                        raise
-                    except RateLimited as e:
-                        # 被限流：退避等待后重试（不计入失败次数），并放慢后续节奏
-                        rl_count += 1
-                        if rl_count > 6:
-                            last_err = e
-                            break
-                        wait_s = max(e.retry_after, min(15 * 2 ** (rl_count - 1), 180))
-                        self._delay_scale = min(self._delay_scale * 1.5, 4.0)
-                        print(f'[WARN] 429 限流，等待 {wait_s:.0f}s 后重试 (节奏 x{self._delay_scale:.1f})')
-                        time.sleep(wait_s)
-                        attempt -= 1
-                    except Exception as e:
-                        last_err = e
-                        print(f'[WARN] {name} 第 {attempt} 次失败: {e}')
-                        time.sleep(2 + attempt * 3)
-                if self.auto and self.level < len(LEVELS) - 1:
-                    self.level += 1
-                    print(f'[INFO] 升级爬虫: {LEVELS[self.level]}')
-                    continue
-                raise FetchError(f'{name} 抓取失败: {last_err}')
-        finally:
-            self._last = time.time()
-
-    def close(self):
-        for fn in (lambda: self._browser and self._browser.close(),
-                   lambda: self._steel and self._steel[0].sessions.release(self._steel[1]),
-                   lambda: self._pw and self._pw.stop()):
-            try:
-                fn()
-            except Exception:
-                pass
 
 
 # ─── 解析 ───────────────────────────────────────────────

@@ -7,7 +7,7 @@
     python gen_epub.py --aid 129 --scraper playwright
     python gen_epub.py --aid 129 --max-chapters 3   # 测试用
 
-爬虫方式 requests -> playwright -> steel，auto 模式下失败自动升级（见 fill_meta.Fetcher）。
+爬虫方式 requests -> playwright -> steel，auto 模式下失败自动升级（见 utils/fetcher.py）。
 章节正文与图片缓存在 out/cache/{aid}/，中断后重跑即可断点继续。
 """
 
@@ -26,7 +26,8 @@ import requests
 from bs4 import BeautifulSoup, NavigableString, Tag
 
 from epub_maker import Chapter, NovelMeta, Volume, create_epub, sniff_ext
-from fill_meta import DOMAIN, LEVELS, Fetcher, FetchError, LoginExpired, parse_detail
+from fill_meta import parse_detail
+from utils import DOMAIN, LEVELS, Fetcher, FetchError, LoginExpired
 
 EPUB_OUT_DIR = os.path.join('out', 'epub')
 CACHE_DIR = os.path.join('out', 'cache')

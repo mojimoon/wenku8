@@ -21,7 +21,7 @@ import time
 
 import pandas as pd
 
-from fill_meta import Fetcher, LoginExpired
+from utils import Fetcher, LoginExpired
 from gen_epub import EPUB_OUT_DIR, build_novel
 
 META_CSV = os.path.join('out', 'txt_meta.csv')

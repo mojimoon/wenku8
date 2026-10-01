@@ -1,37 +1,21 @@
-import requests
 from bs4 import BeautifulSoup
 import csv
 import time
 import random
 from urllib.parse import urljoin
 import sys
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
 import re
 import json
 import os
 import pandas as pd
-import sys
+
+from utils import LEVELS, Fetcher
 
 BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
 params = { 'keyword': '8691', 'charset': 'utf-8', 'page': 1 }
-# 'requests' | 'playwright' | 'steel' | 'none'
-_scraper = 'steel'
-_timeout = 40  # Steel 会话最长存活秒数（结束时会主动 release，不会白白计费）
-# user_agents = [
-#     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'
-#     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'
-#     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
-#     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
-#     'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
-#     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Safari/605.1.15'
-#     'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Safari/605.1.15'
-# ]
-HEADERS = { 
-    'User-Agent': 'Mozilla/5.0',
-    # 'User-Agent': random.choice(user_agents),
-    'Referer': 'https://www.wenku8.net/',
-}
+# 抓取方式见 utils/fetcher.py: 'curl_cffi' | 'requests' | 'playwright' | 'steel' | 'auto'；'none' 表示跳过抓取与合并
+# 命令行: python main.py [scraper]。以 _scraper 起步，失败时自动向后升级（curl_cffi -> playwright -> steel）
+_scraper = 'curl_cffi'
 DOMAIN = 'https://www.wenku8.net'
 CDN_PREFIX = 'https://cdn.jsdmirror.com/gh/'
 LATEST_CDN = f'{CDN_PREFIX}mojimoon/wenku8@main/docs/'
@@ -47,147 +31,19 @@ MERGED_CSV = os.path.join(OUT_DIR, 'merged.csv')
 EPUB_HTML = os.path.join(PUBLIC_DIR, 'epub.html')
 MERGED_HTML = os.path.join(PUBLIC_DIR, 'index.html')
 
-retry_strategy = Retry(
-    total=5,
-    status_forcelist=[500, 502, 503, 504],
-    backoff_factor=2
-)
-session = requests.Session()
-adapter = HTTPAdapter(max_retries=retry_strategy)
-session.mount('http://', adapter)
-session.mount('https://', adapter)
-session.headers.update(HEADERS)
-
-def parse_cookie_line(line: str):
-    line = line.strip()
-    if not line:
-        return {}
-    cookie_dict = {}
-    for part in line.split(';'):
-        part = part.strip()
-        if not part or '=' not in part:
-            continue
-        k, v = part.split('=', 1)
-        cookie_dict[k.strip()] = v.strip()
-    return cookie_dict
-
-def load_cookie_from_file(sess: requests.Session, filepath: str):
-    if not os.path.exists(filepath):
-        return
-    with open(filepath, 'r', encoding='utf-8') as f:
-        # 只取第一行，整行都是 "k1=v1; k2=v2; ..."
-        line = f.readline()
-    cookie_dict = parse_cookie_line(line)
-    if cookie_dict:
-        jar = requests.utils.cookiejar_from_dict(cookie_dict)
-        sess.cookies.update(jar)
-
-load_cookie_from_file(session, COOKIE_FILE)
-
-browser = None
-playwright_ctx_cookie_dict = None
-steel_dict = None
-
-def init_playwright():
-    from playwright.sync_api import sync_playwright
-    global browser, playwright_ctx_cookie_dict
-    if browser is None:
-        playwright = sync_playwright().start()
-        browser = playwright.chromium.launch(
-            headless=True,
-            args=['--no-sandbox', '--disable-setuid-sandbox']
-        )
-        # 预解析 COOKIE_FILE，供后面 new_context 使用
-        if os.path.exists(COOKIE_FILE):
-            with open(COOKIE_FILE, 'r', encoding='utf-8') as f:
-                line = f.readline()
-            playwright_ctx_cookie_dict = parse_cookie_line(line)
-        else:
-            playwright_ctx_cookie_dict = {}
-    return browser
-
-def init_steel():
-    from steel import Steel
-    from dotenv import dotenv_values
-    from playwright.sync_api import sync_playwright
-    global browser, playwright_ctx_cookie_dict, steel_dict
-    steel_api_key = dotenv_values().get('STEEL_API_KEY', '')
-    client = Steel(steel_api_key=steel_api_key)
-    steel_session = client.sessions.create(api_timeout=_timeout * 1000)
-    print(f'[INFO] Running Steel session: {steel_session.id}')
-    steel_dict = {
-        'api_key': steel_api_key,
-        'session_id': steel_session.id,
-        'client': client
-    }
-
-    if browser is None:
-        playwright = sync_playwright().start()
-        browser = playwright.chromium.connect_over_cdp(
-            f'wss://connect.steel.dev?apiKey={steel_api_key}&sessionId={steel_session.id}'
-        )
-
-        if os.path.exists(COOKIE_FILE):
-            with open(COOKIE_FILE, 'r', encoding='utf-8') as f:
-                line = f.readline()
-            playwright_ctx_cookie_dict = parse_cookie_line(line)
-        else:
-            playwright_ctx_cookie_dict = {}
-    return browser
-
-def exit_steel():
-    browser.close()
-    client = steel_dict['client']
-    session_id = steel_dict['session_id']
-    client.sessions.release(session_id)
-
-def scrape_page_playwright(url: str):
-    global browser, playwright_ctx_cookie_dict
-    if browser is None:
-        browser = (init_steel() if _scraper == 'steel' else init_playwright())
-    # 每次新建 context，并注入 cookie
-    with browser.new_context() as context:
-        if playwright_ctx_cookie_dict:
-            cookies = [
-                {
-                    "name": k,
-                    "value": v,
-                    "domain": "www.wenku8.net",
-                    "path": "/",
-                }
-                for k, v in playwright_ctx_cookie_dict.items()
-            ]
-            context.add_cookies(cookies)
-        page = context.new_page()
-        try:
-            page.goto(url, wait_until='domcontentloaded')
-        except Exception as e:
-            print(f"[WARN] Page.goto encountered an error or timeout, attempting to proceed: {e}")
-
-        if "/login.php" in page.url:
-            raise ValueError(f"[ERROR] Playwright 模式被重定向到登录页，可能需要更新 COOKIE 文件: {page.url}")
-        html_content = page.content()
-        page.close()
-    return html_content
-
-def scrape_page_requests(url: str):
-    resp = session.get(url, timeout=10, allow_redirects=True)
-    final_url = resp.url
-    if '/login.php' in final_url:
-        raise ValueError(f"[ERROR] Requests 模式被重定向到登录页，可能需要更新 COOKIE 文件: {final_url}")
-    resp.raise_for_status()
-    resp.encoding = 'utf-8'
-    # with open('debug.html', 'w', encoding='utf-8') as f:
-    #     f.write(resp.text)
-    return resp.text
+_fetcher = None
 
 def scrape_page(url: str):
-    if _scraper == 'playwright' or _scraper == 'steel':
-        return scrape_page_playwright(url)
-    elif _scraper == 'requests':
-        return scrape_page_requests(url)
-    else:
-        raise ValueError(f"Unknown _scraper: {_scraper}")
+    global _fetcher
+    if _fetcher is None:
+        _fetcher = Fetcher(_scraper, fallback=True, delay=(0.3, 0.8))
+    return _fetcher.get(url)
+
+def close_fetcher():
+    global _fetcher
+    if _fetcher is not None:
+        _fetcher.close()
+        _fetcher = None
 
 def build_url_with_params(base_url: str, params: dict):
     if not params:
@@ -334,8 +190,7 @@ def scrape():
             time.sleep(random.uniform(1, 3))
     finally:
         # get_latest 中 sys.exit(0) 或异常退出时也要释放 Steel 会话
-        if _scraper == 'steel' and steel_dict is not None:
-            exit_steel() # close Steel session
+        close_fetcher()  # 释放 playwright / Steel 会话
     print(f'[INFO] new posts: {len(all_entries)}')
 
     # 新内容在前，拼接后写入
@@ -618,6 +473,6 @@ def main():
 if __name__ == '__main__':
     if len(sys.argv) > 1:
         _scraper = sys.argv[1]
-    if len(sys.argv) > 2:
-        _timeout = int(sys.argv[2])
+        if _scraper not in ('none', 'auto', *LEVELS):
+            sys.exit(f"Unknown scraper: {_scraper} (可选: none, auto, {', '.join(LEVELS)})")
     main()

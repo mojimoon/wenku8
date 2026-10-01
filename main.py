@@ -411,8 +411,8 @@ def create_html():
     # 旧版「仅 EPUB」页面已合并，保留跳转以兼容旧链接
     with open(os.path.join(PUBLIC_DIR, 'epub.html'), 'w', encoding='utf-8') as f:
         f.write('<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">'
-                '<meta http-equiv="refresh" content="0;url=./?f=epub"><title>轻小说文库 EPUB 下载</title></head>'
-                '<body><a href="./?f=epub">前往新版页面</a></body></html>')
+                '<meta http-equiv="refresh" content="0;url=./index.html?f=epub"><title>轻小说文库 EPUB 下载</title></head>'
+                '<body><a href="./index.html?f=epub">前往新版页面</a></body></html>')
 
 def main():
     if not os.path.exists(OUT_DIR):

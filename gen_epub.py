@@ -162,17 +162,17 @@ def safe_filename(name: str) -> str:
 # ─── 单本小说 ───────────────────────────────────────────
 
 
-def compress_image(data: bytes) -> bytes:
-    """长边限制 MAX_SIDE、转 JPEG（体积更小）；GIF 或压缩后反而更大时保持原样。"""
-    if data[:3] == b'GIF':
+def compress_image(data: bytes, max_side: int = MAX_SIDE) -> bytes:
+    """长边限制 max_side、转 JPEG（体积更小）；GIF 或压缩后反而更大时保持原样。max_side=0 表示保留原图。"""
+    if data[:3] == b'GIF' or not max_side:
         return data
     try:
         from PIL import Image
         im = Image.open(io.BytesIO(data))
         if im.mode not in ('RGB', 'L'):
             im = im.convert('RGB')
-        if max(im.size) > MAX_SIDE:
-            im.thumbnail((MAX_SIDE, MAX_SIDE), Image.LANCZOS)
+        if max(im.size) > max_side:
+            im.thumbnail((max_side, max_side), Image.LANCZOS)
         buf = io.BytesIO()
         im.save(buf, 'JPEG', quality=JPEG_QUALITY, optimize=True, progressive=True)
         return buf.getvalue() if len(buf.getvalue()) < len(data) else data
@@ -191,7 +191,9 @@ def first_illustration(volume: Volume, images: dict) -> bytes | None:
 
 
 def build_novel(fetcher: Fetcher, aid: int, max_chapters: int = 0, skip_update: str = '',
-                split: bool = False, compress: bool = True) -> dict | None:
+                split: bool = False, compress: bool = True, max_side: int = MAX_SIDE,
+                with_images: bool = True, only_volumes: set | None = None) -> dict | None:
+    """max_side: 插图长边上限（0=原图）；with_images=False 不含插图；only_volumes: 只生成这些卷（目录中的序号）。"""
     detail = parse_detail(fetcher.get(book_url(aid), lambda h: 'id="content"' in h))
     title = detail.get('title') or str(aid)
     if skip_update and detail.get('update') == skip_update:
@@ -200,15 +202,18 @@ def build_novel(fetcher: Fetcher, aid: int, max_chapters: int = 0, skip_update: 
     print(f'    {title} / {detail.get("author", "")} / {detail.get("update", "")} / {detail.get("status", "")}')
 
     toc = parse_toc(fetcher.get(toc_url(aid), lambda h: 'vcss' in h, encoding='gbk'), toc_url(aid))
-    total = sum(len(v[1]) for v in toc)
     if not toc:
         raise FetchError('目录为空')
+    toc = [(vi, t, c) for vi, (t, c) in enumerate(toc, 1) if not only_volumes or vi in only_volumes]
+    if not toc:
+        raise FetchError('指定的卷不存在')
+    total = sum(len(c) for _, _, c in toc)
     print(f'    {len(toc)} 卷 {total} 章')
 
     # 1. 章节正文
     chapter_blocks = {}  # url -> blocks
     n = 0
-    for _, chapters in toc:
+    for _, _, chapters in toc:
         for ctitle, url in chapters:
             if max_chapters and n >= max_chapters:
                 break
@@ -221,13 +226,13 @@ def build_novel(fetcher: Fetcher, aid: int, max_chapters: int = 0, skip_update: 
     urls = []
     for blocks in chapter_blocks.values():
         for kind, v in blocks:
-            if kind == 'img' and v not in urls:
+            if with_images and kind == 'img' and v not in urls:
                 urls.append(v)
-    print(f'    下载 {len(urls)} 张插图...')
+    print(f'    下载 {len(urls)} 张插图...' if with_images else '    不含插图')
 
     def load(u):
         data = fetch_image(aid, u)
-        return compress_image(data) if data and compress else data
+        return compress_image(data, max_side) if data and compress else data
 
     with ThreadPoolExecutor(IMAGE_WORKERS) as ex:
         results = list(ex.map(load, urls))
@@ -244,7 +249,7 @@ def build_novel(fetcher: Fetcher, aid: int, max_chapters: int = 0, skip_update: 
 
     # 3. 组装（保留卷在目录中的原始序号 index，便于分卷文件命名）
     volumes = []  # [(index, Volume)]
-    for vi, (vtitle, chapters) in enumerate(toc, 1):
+    for vi, vtitle, chapters in toc:
         vol = Volume(vtitle)
         for ctitle, url in chapters:
             if url not in chapter_blocks:
@@ -349,6 +354,9 @@ def main():
     ap.add_argument('--max-chapters', type=int, default=0, help='每本最多抓取章节数（测试用）')
     ap.add_argument('--split', action='store_true', help='按卷输出 out/epub/{aid}/vNN.epub 与 index.json')
     ap.add_argument('--no-compress', action='store_true', help='不压缩插图')
+    ap.add_argument('--max-side', type=int, default=MAX_SIDE, help='插图长边上限，0=原图')
+    ap.add_argument('--no-images', action='store_true', help='不含插图')
+    ap.add_argument('--volumes', default='', help='只生成指定卷，如 1,3')
     args = ap.parse_args()
     if not args.aid and not args.toplist:
         ap.error('请指定 --aid 或 --toplist')
@@ -368,7 +376,9 @@ def main():
             try:
                 prev = state['novels'].get(str(aid), {})
                 skip = '' if args.force or not args.toplist else prev.get('last_update', '')
-                info = build_novel(fetcher, aid, args.max_chapters, skip, args.split, not args.no_compress)
+                info = build_novel(fetcher, aid, args.max_chapters, skip, args.split, not args.no_compress,
+                                   args.max_side, not args.no_images,
+                                   {int(x) for x in args.volumes.split(',') if x} or None)
                 if info is None:
                     continue
             except LoginExpired:

@@ -47,9 +47,12 @@ def load_index() -> dict:
 
 
 def save_index(index: dict):
+    """每个 aid 一行，便于 git 合并并发提交（批量生成与按需生成）。"""
     tmp = INDEX_FILE + '.tmp'
     with open(tmp, 'w', encoding='utf-8') as f:
-        json.dump(index, f, ensure_ascii=False, separators=(',', ':'), sort_keys=True)
+        rows = [f'{json.dumps(k)}:{json.dumps(index[k], ensure_ascii=False, separators=(",", ":"), sort_keys=True)}'
+                for k in sorted(index, key=int)]
+        f.write('{\n' + ',\n'.join(rows) + '\n}\n')
     os.replace(tmp, INDEX_FILE)
 
 

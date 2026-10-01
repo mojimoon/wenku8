@@ -1,0 +1,57 @@
+name: Build EPUB on request
+
+# 页面上的「请求生成」会预填一个标题以 "[build]" 开头的 Issue；本工作流解析它、生成分卷 EPUB 并回复下载链接。
+# 注意：issues 事件只会运行默认分支（main）上的工作流。
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: build-request
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: startsWith(github.event.issue.title, '[build]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+      # 不可信输入只通过环境变量传递，由 build_request.py 严格解析
+      ISSUE_BODY: ${{ github.event.issue.body }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Setup cookie
+        run: echo "${{ secrets.WENKU_COOKIES }}" > COOKIE
+
+      - name: Build
+        run: python build_request.py
+
+      - name: Reply
+        if: always()
+        run: |
+          [ -f out/request_comment.md ] || echo "生成失败，请稍后重试或查看 Actions 日志。" > out/request_comment.md
+          gh issue comment "$ISSUE_NUMBER" --body-file out/request_comment.md
+          gh issue close "$ISSUE_NUMBER" --reason completed
+
+      - name: Commit index
+        if: success()
+        run: |
+          git config user.name "mojimoon"
+          git config user.email "109803649+mojimoon@users.noreply.github.com"
+          git add out/epub_index.json
+          git diff --staged --quiet || git commit -m "chore: update epub index (request #$ISSUE_NUMBER) [skip ci]"
+          git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}"

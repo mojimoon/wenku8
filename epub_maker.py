@@ -1,529 +1,335 @@
 """
-EPUB3 生成模块
-基于 ebooklib，复刻 sample.epub 的 calibre 格式。
+EPUB3 生成模块（直接用 zipfile 写入，无第三方依赖）。
+
+支持: 封面、简介页、分卷嵌套目录（nav.xhtml + toc.ncx）、正文内嵌插图。
 
 生成结构:
     ├── mimetype
     ├── META-INF/container.xml
     └── OEBPS/
-        ├── content.opf       (元数据 + manifest + spine)
+        ├── content.opf
         ├── toc.ncx           (EPUB2 兼容目录)
         ├── nav.xhtml         (EPUB3 导航)
         ├── Styles/style.css
-        ├── Images/cover.jpg
-        └── Text/
-            ├── Cover.xhtml
-            ├── chapter0.xhtml ... chapterN.xhtml
-            └── Credits.xhtml
+        ├── Images/cover.<ext>, img0001.<ext> ...
+        └── Text/Cover.xhtml, Intro.xhtml, v1.xhtml, c0001.xhtml ...
 """
 
-import uuid
 import datetime
 import os
 import re
+import uuid
+import zipfile
 from dataclasses import dataclass, field
-from typing import Optional
-from ebooklib import epub
 
 # ─── 数据模型 ───────────────────────────────────────────
 
+
 @dataclass
 class NovelMeta:
-    """小说元数据"""
     title: str
     author: str
-    source_url: str = ""
-    description: str = ""
-    publisher: str = ""
+    source_url: str = ''
+    description: str = ''
+    publisher: str = ''
     subjects: list = field(default_factory=list)
-    series: str = ""          # 系列名
-    series_index: int = 0     # 卷号
-    language: str = "zh"
+    status: str = ''
+    language: str = 'zh-CN'
+    identifier: str = ''      # 为空则随机生成 UUID
+    modified: str = ''        # YYYY-MM-DD，为空则取今天
 
 
 @dataclass
 class Chapter:
-    """章节数据"""
     title: str
-    content: str              # 纯文本，段落用 \n\n 分隔
-    index: int = 0
+    # 内容块: ('p', 文本) 段落 | ('img', 图片文件名)，图片文件名对应 images 字典的 key
+    blocks: list = field(default_factory=list)
 
 
-# ─── 默认 CSS ───────────────────────────────────────────
+@dataclass
+class Volume:
+    title: str
+    chapters: list = field(default_factory=list)
 
-DEFAULT_CSS = """body {
+
+# ─── CSS ────────────────────────────────────────────────
+
+CSS = """body {
+  margin: 0 1%;
   padding: 0;
-  margin-top: 0;
-  margin-bottom: 0;
-  margin-left: 1%;
-  margin-right: 1%;
-  line-height: 1.3;
+  line-height: 1.5;
 }
 h1 {
   line-height: 1.3;
   text-align: center;
   font-weight: bold;
-  font-size: 1.5em;
-  margin-top: 0;
-  margin-bottom: 0;
+  font-size: 1.4em;
+  margin: 1em 0;
 }
-div,
-figure,
-section {
-  margin: 0;
-  padding: 0;
-  text-align: justify;
+h1.volume {
+  font-size: 1.8em;
+  margin: 40% 0 0 0;
 }
 p {
+  margin: 0;
   text-indent: 2em;
-  line-height: 1.3;
-  display: block;
+  text-align: justify;
 }
-p.asterisk,
-p.numerals {
-  text-indent: 5em;
+p.center {
+  text-indent: 0;
+  text-align: center;
   padding: 1em 0;
-  display: block;
 }
 p.numerals {
+  text-indent: 0;
+  text-align: center;
   font-weight: bold;
+  padding: 1em 0;
 }
-.cover {
+p.meta {
+  text-indent: 0;
+  text-align: center;
+}
+div.cover {
+  text-align: center;
   margin: 0;
   padding: 0;
+}
+div.cover img {
+  max-width: 100%;
+  max-height: 100%;
+}
+div.illust {
+  text-align: center;
+  margin: 0 0 1em 0;
+  page-break-inside: avoid;
+}
+div.illust img {
+  max-width: 100%;
+  height: auto;
+}
+div.intro p {
   text-indent: 0;
-  text-align: center;
-}
-.cover svg,
-.illust svg {
-  border-radius: 1rem;
-}
-.illust {
-  display: block;
-}
-.illust:not(:last-child) {
-  margin-bottom: 1em;
-}
-.entry {
-  padding: 3px;
-  background: none repeat scroll 0 0 #eee;
-  border-radius: 10px;
-  margin-top: 0.5em;
-  color: #000;
-}
-.credits,
-p.last-update {
-  background: none repeat scroll 0 0 #eee;
-  text-indent: 0;
-  text-align: center;
-}
-.credits b {
-  background: none repeat scroll 0 0 #eee;
-}
-h1.credits {
-  background: none repeat scroll 0 0 #eee;
-  font-size: 1.5em;
-  font-weight: bold;
-  text-align: center;
-  padding: 1em 0 1em 0;
-  display: block;
-}
-p.author-signature,
-p.reference {
-  text-align: right;
-  padding-right: 2em;
+  margin: 0.5em 0;
 }
 """
 
 # ─── XHTML 模板 ─────────────────────────────────────────
 
-COVER_XHTML_TEMPLATE = """<html xml:lang="zh-CN" xmlns="http://www.w3.org/1999/xhtml">
-    <head>
-        <meta content="text/html; charset=utf-8" http-equiv="Content-Type"/>
-        <link href="../Styles/style.css" rel="stylesheet" type="text/css"/>
-        <title>封面</title>
-    </head>
-    <body>
-        <figure class="cover">
-            <svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink"
-                 width="100%" height="100%" viewBox="0 0 {img_w} {img_h}">
-                <image width="{img_w}" height="{img_h}" xlink:href="../Images/cover.jpg"/>
-            </svg>
-        </figure>
-    </body>
-</html>"""
-
-CHAPTER_XHTML_TEMPLATE = """<html xml:lang="zh-CN" xmlns="http://www.w3.org/1999/xhtml">
-    <head>
-        <meta content="text/html; charset=utf-8" http-equiv="Content-Type"/>
-        <link href="../Styles/style.css" rel="stylesheet" type="text/css"/>
-        <title>{title}</title>
-    </head>
-    <body>
-        <section>
-            <h1>{title}</h1>
-            <hr/>
+XHTML = """<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="zh-CN" lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<title>{title}</title>
+<link href="../Styles/style.css" rel="stylesheet" type="text/css"/>
+</head>
+<body>
 {body}
-        </section>
-    </body>
-</html>"""
-
-CREDITS_XHTML_TEMPLATE = """<!DOCTYPE html>
-<html xml:lang="zh-CN" xmlns="http://www.w3.org/1999/xhtml">
- <head>
-  <meta content="text/html; charset=utf-8" http-equiv="Content-Type"/>
-  <link href="../Styles/style.css" rel="stylesheet" type="text/css"/>
-  <title>制作人员</title>
- </head>
- <body>
-  <div class="entry">
-   <h1 class="credits">制作人员</h1>
-   <p class="credits">
-    内容来源：轻小说文库 (www.wenku8.net)
-    <br/>
-    自动化 EPUB 生成
-   </p>
-   <p class="last-update">最后更新：{date}</p>
-  </div>
- </body>
-</html>"""
-
-NAV_XHTML_TEMPLATE = """<?xml version='1.0' encoding='utf-8'?>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="zh" xml:lang="zh">
-  <head>
-    <title>Navigation</title>
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-  </head>
-  <body>
-    <nav epub:type="toc">
-  <ol>
-    <li><a href="Text/Cover.xhtml">封面</a></li>
-{nav_items}
-    <li><a href="Text/Credits.xhtml">制作人员</a></li>
-  </ol>
-</nav>
 </body>
-</html>"""
+</html>
+"""
+
+MIME = {'jpg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif', 'webp': 'image/webp'}
 
 
-# ─── 正文段落处理 ──────────────────────────────────────
+# ─── 工具 ───────────────────────────────────────────────
 
-def _is_section_number(text: str) -> bool:
-    """检测是否为小节编号（如 '1', '2', '三', 'ⅰ' 等）"""
-    stripped = text.strip()
-    if not stripped:
+
+def escape_xml(text: str) -> str:
+    return (text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            .replace('"', '&quot;'))
+
+
+def sniff_ext(data: bytes) -> str:
+    """根据文件头判断图片扩展名，未知按 jpg 处理。"""
+    if data[:8] == b'\x89PNG\r\n\x1a\n':
+        return 'png'
+    if data[:6] in (b'GIF87a', b'GIF89a'):
+        return 'gif'
+    if data[:4] == b'RIFF' and data[8:12] == b'WEBP':
+        return 'webp'
+    return 'jpg'
+
+
+def is_section_number(text: str) -> bool:
+    """小节编号（如 '1', '三', 'Ⅱ'）"""
+    t = text.strip()
+    if not t or len(t) > 4:
         return False
-    # 阿拉伯数字
-    if re.match(r'^[0-9]+$', stripped) and len(stripped) <= 3:
-        return True
-    # 中文数字
-    if re.match(r'^[零一二三四五六七八九十百千]+$', stripped) and len(stripped) <= 4:
-        return True
-    # 罗马数字
-    if re.match(r'^[IVXivx]+$', stripped) and len(stripped) <= 5:
-        return True
-    return False
+    return bool(re.fullmatch(r'[0-9０-９零一二三四五六七八九十百千IVXivxⅠ-Ⅻ]+', t))
 
 
-def _clean_content(raw_text: str) -> str:
-    """清洗正文文本，跳过来源声明行"""
-    lines = raw_text.strip().split('\n')
-    cleaned = []
-    for line in lines:
-        stripped = line.strip()
-        # 跳过网站来源声明
-        if stripped.startswith('本文来自') or stripped.startswith('轻小说文库'):
-            continue
-        if 'wenku8' in stripped.lower():
-            continue
-        cleaned.append(stripped)
-    return '\n'.join(cleaned)
+def block_to_xhtml(block: tuple) -> str:
+    kind, value = block
+    if kind == 'img':
+        return f'<div class="illust"><img src="../Images/{value}" alt=""/></div>'
+    if is_section_number(value):
+        return f'<p class="numerals">{escape_xml(value)}</p>'
+    if value.startswith(('※', '★', '◆', '◇', '□', '■', '＊', '*')) and len(value) <= 40:
+        return f'<p class="center">{escape_xml(value)}</p>'
+    return f'<p>{escape_xml(value)}</p>'
 
 
-def _text_to_xhtml(raw_text: str) -> str:
-    """将纯文本内容转换为 EPUB 的 XHTML body 部分"""
-    text = _clean_content(raw_text)
-    # 按空行分割段落
-    paragraphs = re.split(r'\n\s*\n', text)
-    html_parts = []
-
-    for para in paragraphs:
-        para = para.strip()
-        if not para:
-            continue
-
-        # 按换行分割（同一段内的换行用 <br/> 连接）
-        sub_lines = [s.strip() for s in para.split('\n') if s.strip()]
-        if not sub_lines:
-            continue
-
-        first_line = sub_lines[0]
-
-        # 判断是否为小节编号
-        if _is_section_number(first_line) and len(sub_lines) == 1:
-            html_parts.append(f'            <p class="numerals">{_escape_xml(first_line)}</p>')
-        else:
-            # 检查以 ※ 或 ★ 等特殊符号开头的段落
-            if first_line.startswith(('※', '★', '◆', '◇', '□', '■')):
-                joined = '<br/>\n'.join(_escape_xml(l) for l in sub_lines)
-                html_parts.append(f'            <p class="asterisk">{joined}</p>')
-            else:
-                joined = '<br/>\n'.join(_escape_xml(l) for l in sub_lines)
-                html_parts.append(f'            <p>{joined}</p>')
-
-    return '\n'.join(html_parts)
+def page(title: str, body: str) -> bytes:
+    return XHTML.format(title=escape_xml(title), body=body).encode('utf-8')
 
 
-def _escape_xml(text: str) -> str:
-    """转义 XML 特殊字符"""
-    text = text.replace('&', '&amp;')
-    text = text.replace('<', '&lt;')
-    text = text.replace('>', '&gt;')
-    text = text.replace('"', '&quot;')
-    text = text.replace("'", '&apos;')
-    return text
+# ─── EPUB 生成 ──────────────────────────────────────────
 
 
-# ─── EPUB 生成核心 ─────────────────────────────────────
-
-def create_epub(
-    meta: NovelMeta,
-    chapters: list[Chapter],
-    cover_image_data: Optional[bytes] = None,
-    cover_mime: str = "image/jpeg",
-    output_path: str = "output.epub",
-    last_update_date: Optional[str] = None,
-) -> str:
+def create_epub(meta: NovelMeta, volumes: list, images: dict = None,
+                cover_data: bytes = None, output_path: str = 'output.epub') -> str:
     """
     生成 EPUB3 文件。
 
     Args:
         meta: 小说元数据
-        chapters: 章节列表
-        cover_image_data: 封面图片二进制数据
-        cover_mime: 封面图片 MIME 类型
-        output_path: 输出文件路径
-        last_update_date: 最后更新日期 (YYYY-MM-DD)
-
-    Returns:
-        生成的 EPUB 文件路径
+        volumes: [Volume, ...]
+        images: {文件名: 二进制}，章节内容块通过文件名引用
+        cover_data: 封面图片二进制，可为空
     """
-    book = epub.EpubBook()
+    images = images or {}
+    modified = meta.modified or datetime.date.today().isoformat()
+    uid = meta.identifier or f'urn:uuid:{uuid.uuid4()}'
 
-    # ── 标识符 ──
-    book_uid = f"urn:uuid:{uuid.uuid4()}"
-    book.set_identifier(book_uid)
-    book.set_title(meta.title)
-    book.set_language(meta.language)
-    book.add_author(meta.author)
+    files = {}      # 路径(相对 OEBPS) -> bytes
+    manifest = []   # (id, href, media-type, properties)
+    spine = []      # idref
+    nav_tree = []   # [(title, href, [(title, href), ...])]
 
-    # ── 元数据 ──
-    if meta.source_url:
-        book.add_metadata('DC', 'source', meta.source_url)
+    files['Styles/style.css'] = CSS.encode('utf-8')
+    manifest.append(('css', 'Styles/style.css', 'text/css', ''))
+
+    # 封面
+    cover_name = ''
+    if cover_data:
+        cover_name = 'cover.' + sniff_ext(cover_data)
+        files['Images/' + cover_name] = cover_data
+        manifest.append(('cover-image', 'Images/' + cover_name, MIME[sniff_ext(cover_data)], 'cover-image'))
+        files['Text/Cover.xhtml'] = page(
+            '封面', f'<div class="cover"><img src="../Images/{cover_name}" alt="cover"/></div>')
+        manifest.append(('cover', 'Text/Cover.xhtml', 'application/xhtml+xml', ''))
+        spine.append('cover')
+        nav_tree.append(('封面', 'Text/Cover.xhtml', []))
+
+    # 简介页
+    info = [f'<h1>{escape_xml(meta.title)}</h1>', f'<p class="meta">{escape_xml(meta.author)}</p>']
+    extra = ' / '.join(x for x in (meta.publisher, meta.status) if x)
+    if extra:
+        info.append(f'<p class="meta">{escape_xml(extra)}</p>')
+    if meta.subjects:
+        info.append(f'<p class="meta">{escape_xml(" ".join(meta.subjects))}</p>')
     if meta.description:
-        book.add_metadata('DC', 'description', meta.description)
+        paras = ''.join(f'<p>{escape_xml(s.strip())}</p>' for s in meta.description.split('\n') if s.strip())
+        info.append(f'<div class="intro">{paras}</div>')
+    if meta.source_url:
+        info.append(f'<p class="meta">来源：{escape_xml(meta.source_url)}</p>')
+    files['Text/Intro.xhtml'] = page('简介', '\n'.join(info))
+    manifest.append(('intro', 'Text/Intro.xhtml', 'application/xhtml+xml', ''))
+    spine.append('intro')
+    nav_tree.append(('简介', 'Text/Intro.xhtml', []))
+
+    # 图片
+    for name, data in images.items():
+        ext = name.rsplit('.', 1)[-1].lower()
+        files['Images/' + name] = data
+        manifest.append((f'img-{name}', 'Images/' + name, MIME.get(ext, 'image/jpeg'), ''))
+
+    # 分卷与章节
+    ci = 0
+    for vi, vol in enumerate(volumes, 1):
+        vhref = f'Text/v{vi}.xhtml'
+        files[vhref] = page(vol.title, f'<h1 class="volume">{escape_xml(vol.title)}</h1>')
+        manifest.append((f'v{vi}', vhref, 'application/xhtml+xml', ''))
+        spine.append(f'v{vi}')
+        children = []
+        for ch in vol.chapters:
+            ci += 1
+            href = f'Text/c{ci:04d}.xhtml'
+            body = f'<h1>{escape_xml(ch.title)}</h1>\n' + '\n'.join(block_to_xhtml(b) for b in ch.blocks)
+            files[href] = page(ch.title, body)
+            manifest.append((f'c{ci:04d}', href, 'application/xhtml+xml', ''))
+            spine.append(f'c{ci:04d}')
+            children.append((ch.title, href))
+        nav_tree.append((vol.title, vhref, children))
+
+    # nav.xhtml
+    def nav_li(title, href, children):
+        inner = ''
+        if children:
+            inner = '\n<ol>\n' + '\n'.join(nav_li(t, h, []) for t, h in children) + '\n</ol>'
+        return f'<li><a href="{href}">{escape_xml(title)}</a>{inner}</li>'
+
+    nav_body = ('<nav epub:type="toc" id="toc"><h1>目录</h1>\n<ol>\n'
+                + '\n'.join(nav_li(*n) for n in nav_tree) + '\n</ol></nav>')
+    files['nav.xhtml'] = XHTML.format(title='目录', body=nav_body).replace(
+        '../Styles/style.css', 'Styles/style.css').encode('utf-8')
+    manifest.append(('nav', 'nav.xhtml', 'application/xhtml+xml', 'nav'))
+
+    # toc.ncx
+    order = 0
+
+    def ncx_point(title, href, children):
+        nonlocal order
+        order += 1
+        pid = order
+        kids = ''.join(ncx_point(t, h, []) for t, h in children)
+        return (f'<navPoint id="np{pid}" playOrder="{pid}"><navLabel><text>{escape_xml(title)}</text></navLabel>'
+                f'<content src="{href}"/>{kids}</navPoint>')
+
+    points = ''.join(ncx_point(*n) for n in nav_tree)
+    depth = 2 if any(n[2] for n in nav_tree) else 1
+    files['toc.ncx'] = (
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">'
+        f'<head><meta name="dtb:uid" content="{escape_xml(uid)}"/><meta name="dtb:depth" content="{depth}"/>'
+        '<meta name="dtb:totalPageCount" content="0"/><meta name="dtb:maxPageNumber" content="0"/></head>'
+        f'<docTitle><text>{escape_xml(meta.title)}</text></docTitle><navMap>{points}</navMap></ncx>'
+    ).encode('utf-8')
+    manifest.append(('ncx', 'toc.ncx', 'application/x-dtbncx+xml', ''))
+
+    # content.opf
+    md = [f'<dc:identifier id="BookId">{escape_xml(uid)}</dc:identifier>',
+          f'<dc:title>{escape_xml(meta.title)}</dc:title>',
+          f'<dc:creator>{escape_xml(meta.author)}</dc:creator>',
+          f'<dc:language>{meta.language}</dc:language>']
     if meta.publisher:
-        book.add_metadata('DC', 'publisher', meta.publisher)
-    for subject in meta.subjects:
-        if subject:
-            book.add_metadata('DC', 'subject', subject)
+        md.append(f'<dc:publisher>{escape_xml(meta.publisher)}</dc:publisher>')
+    if meta.description:
+        md.append(f'<dc:description>{escape_xml(meta.description)}</dc:description>')
+    for s in meta.subjects:
+        if s:
+            md.append(f'<dc:subject>{escape_xml(s)}</dc:subject>')
+    if meta.source_url:
+        md.append(f'<dc:source>{escape_xml(meta.source_url)}</dc:source>')
+    md.append(f'<meta property="dcterms:modified">{modified}T00:00:00Z</meta>')
+    if cover_name:
+        md.append('<meta name="cover" content="cover-image"/>')
 
-    book.add_metadata('DC', 'contributor', 'wenku8-epub-gen', {'role': 'bkp'})
+    items = '\n'.join(
+        f'<item id="{escape_xml(i)}" href="{escape_xml(h)}" media-type="{m}"' + (f' properties="{p}"' if p else '') + '/>'
+        for i, h, m, p in manifest)
+    refs = '\n'.join(f'<itemref idref="{escape_xml(i)}"/>' for i in spine)
+    opf = ('<?xml version="1.0" encoding="utf-8"?>\n'
+           '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="BookId">\n'
+           '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">\n' + '\n'.join(md) + '\n</metadata>\n'
+           f'<manifest>\n{items}\n</manifest>\n<spine toc="ncx">\n{refs}\n</spine>\n</package>\n')
 
-    # 系列信息
-    if meta.series:
-        book.add_metadata(None, 'meta', '', {
-            'property': 'belongs-to-collection',
-            'id': 'series-id',
-        })
-        book.add_metadata(None, 'meta', meta.series, {
-            'refines': '#series-id',
-            'property': 'collection-type',
-        })
-        book.add_metadata(None, 'meta', str(meta.series_index), {
-            'refines': '#series-id',
-            'property': 'group-position',
-        })
+    container = ('<?xml version="1.0" encoding="utf-8"?>\n'
+                 '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+                 '<rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>'
+                 '</rootfiles></container>')
 
-    # 修改日期
-    today = datetime.date.today().isoformat()
-    book.add_metadata(None, 'meta', f'{today}T00:00:00Z', {
-        'property': 'dcterms:modified',
-    })
-
-    # ── CSS ──
-    css_item = epub.EpubItem(
-        uid="style.css",
-        file_name="Styles/style.css",
-        media_type="text/css",
-        content=DEFAULT_CSS.encode('utf-8'),
-    )
-    book.add_item(css_item)
-
-    # ── 封面图片 ──
-    cover_image_item = None
-    if cover_image_data:
-        cover_image_item = epub.EpubItem(
-            uid="cover.jpg",
-            file_name="Images/cover.jpg",
-            media_type=cover_mime,
-            content=cover_image_data,
-        )
-        book.add_item(cover_image_item)
-
-    # ── 创建章节 EPUB items ──
-    chapter_items = []
-    spine_items = []
-    toc_entries = []
-
-    # 封面页
-    if cover_image_item:
-        cover_xhtml = COVER_XHTML_TEMPLATE.format(img_w=1034, img_h=1500)
-    else:
-        # 无封面时用简单文本
-        cover_xhtml = (
-            '<html xml:lang="zh-CN" xmlns="http://www.w3.org/1999/xhtml">'
-            '<head><title>封面</title></head>'
-            f'<body><h1 style="text-align:center;padding:2em;">{_escape_xml(meta.title)}</h1>'
-            f'<p style="text-align:center;">{_escape_xml(meta.author)}</p></body></html>'
-        )
-
-    cover_item = epub.EpubItem(
-        uid="Cover.xhtml",
-        file_name="Text/Cover.xhtml",
-        media_type="application/xhtml+xml",
-        content=cover_xhtml.encode('utf-8'),
-        properties="svg" if cover_image_item else "",
-    )
-    book.add_item(cover_item)
-    spine_items.append(cover_item)
-    toc_entries.append(epub.Link("Text/Cover.xhtml", "封面", "Cover"))
-
-    # 各章节
-    for ch in chapters:
-        body_html = _text_to_xhtml(ch.content)
-        xhtml = CHAPTER_XHTML_TEMPLATE.format(
-            title=_escape_xml(ch.title),
-            body=body_html,
-        )
-        item_id = f"chapter{ch.index}.xhtml"
-        item = epub.EpubItem(
-            uid=item_id,
-            file_name=f"Text/chapter{ch.index}.xhtml",
-            media_type="application/xhtml+xml",
-            content=xhtml.encode('utf-8'),
-        )
-        book.add_item(item)
-        chapter_items.append(item)
-        spine_items.append(item)
-        toc_entries.append(epub.Link(f"Text/chapter{ch.index}.xhtml", ch.title, item_id))
-
-    # 制作人员页
-    ld = last_update_date or today
-    credits_xhtml = CREDITS_XHTML_TEMPLATE.format(date=ld)
-    credits_item = epub.EpubItem(
-        uid="Credits.xhtml",
-        file_name="Text/Credits.xhtml",
-        media_type="application/xhtml+xml",
-        content=credits_xhtml.encode('utf-8'),
-    )
-    book.add_item(credits_item)
-    spine_items.append(credits_item)
-    toc_entries.append(epub.Link("Text/Credits.xhtml", "制作人员", "Credits"))
-
-    # ── NAV (EPUB3) ──
-    nav_items_str = '\n'.join(
-        f'    <li><a href="Text/Cover.xhtml">封面</a></li>'
-    )
-    nav_items_str += '\n' + '\n'.join(
-        f'    <li><a href="Text/chapter{ch.index}.xhtml">{_escape_xml(ch.title)}</a></li>'
-        for ch in chapters
-    )
-    nav_items_str += '\n    <li><a href="Text/Credits.xhtml">制作人员</a></li>'
-
-    nav_xhtml_str = NAV_XHTML_TEMPLATE.format(nav_items=nav_items_str)
-    nav_item = epub.EpubItem(
-        uid="nav",
-        file_name="nav.xhtml",
-        media_type="application/xhtml+xml",
-        content=nav_xhtml_str.encode('utf-8'),
-        properties="nav",
-    )
-    book.add_item(nav_item)
-
-    # ── NCX (EPUB2 兼容) ──
-    book.toc = toc_entries
-
-    # ── SPINE ──
-    book.spine = spine_items
-
-    # ── 写入文件 ──
     os.makedirs(os.path.dirname(output_path) or '.', exist_ok=True)
-    epub.write_epub(output_path, book)
-
+    tmp = output_path + '.tmp'
+    with zipfile.ZipFile(tmp, 'w') as z:
+        z.writestr(zipfile.ZipInfo('mimetype'), 'application/epub+zip', compress_type=zipfile.ZIP_STORED)
+        z.writestr('META-INF/container.xml', container, compress_type=zipfile.ZIP_DEFLATED)
+        z.writestr('OEBPS/content.opf', opf, compress_type=zipfile.ZIP_DEFLATED)
+        for path, data in files.items():
+            # 图片本身已压缩，直接存储
+            comp = zipfile.ZIP_STORED if path.startswith('Images/') else zipfile.ZIP_DEFLATED
+            z.writestr('OEBPS/' + path, data, compress_type=comp)
+    os.replace(tmp, output_path)
     return output_path
-
-
-# ─── 便捷函数 ──────────────────────────────────────────
-
-def make_epub_from_raw(
-    title: str,
-    author: str,
-    chapters_raw: list[tuple[str, str]],  # [(chapter_title, chapter_text), ...]
-    description: str = "",
-    source_url: str = "",
-    publisher: str = "",
-    subjects: list = None,
-    cover_image_data: bytes = None,
-    output_path: str = "",
-    series: str = "",
-    series_index: int = 0,
-    last_update: str = "",
-) -> str:
-    """
-    便捷函数：从原始数据直接生成 EPUB。
-
-    Args:
-        title: 书名
-        author: 作者
-        chapters_raw: 章节列表 [(标题, 正文文本), ...]
-        description: 简介
-        source_url: 源 URL
-        publisher: 出版社/文库
-        subjects: 标签列表
-        cover_image_data: 封面图片数据
-        output_path: 输出路径 (为空则自动生成)
-        series: 系列名
-        series_index: 卷序号
-        last_update: 最后更新日期
-
-    Returns:
-        生成的 EPUB 文件路径
-    """
-    meta = NovelMeta(
-        title=title,
-        author=author,
-        source_url=source_url,
-        description=description,
-        publisher=publisher,
-        subjects=subjects or [],
-        series=series,
-        series_index=series_index,
-    )
-
-    chapters = [
-        Chapter(title=t, content=c, index=i)
-        for i, (t, c) in enumerate(chapters_raw)
-    ]
-
-    if not output_path:
-        safe_title = re.sub(r'[\\/*?:"<>|]', '', title)[:80]
-        output_path = f"{safe_title}.epub"
-
-    return create_epub(
-        meta=meta,
-        chapters=chapters,
-        cover_image_data=cover_image_data,
-        output_path=output_path,
-        last_update_date=last_update,
-    )

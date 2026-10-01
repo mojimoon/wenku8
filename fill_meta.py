@@ -105,6 +105,12 @@ class FetchError(RuntimeError):
     pass
 
 
+class RateLimited(FetchError):
+    def __init__(self, retry_after: float = 0):
+        super().__init__('HTTP 429')
+        self.retry_after = retry_after
+
+
 def is_challenge(html: str) -> bool:
     return 'Just a moment' in html[:2000] or ('Ray ID' in html and 'cloudflare' in html.lower() and len(html) < 20000)
 
@@ -124,16 +130,20 @@ class Fetcher:
         self._context = None
         self._steel = None  # (client, session_id)
         self._last = 0.0
+        self._delay_scale = 1.0  # 触发 429 后放慢请求节奏
 
     # --- 各级实现 ---
 
-    def _get_requests(self, url: str) -> str:
+    def _get_requests(self, url: str, encoding: str = 'utf-8') -> str:
         resp = self.session.get(url, timeout=15, allow_redirects=True)
         if '/login.php' in resp.url:
             raise LoginExpired(f'被重定向到登录页，请更新 COOKIE: {resp.url}')
+        if resp.status_code == 429:
+            ra = resp.headers.get('Retry-After', '')
+            raise RateLimited(float(ra) if ra.isdigit() else 0)
         if resp.status_code != 200:
             raise FetchError(f'HTTP {resp.status_code}')
-        resp.encoding = 'utf-8'
+        resp.encoding = encoding
         return resp.text
 
     def _open_context(self, steel: bool):
@@ -184,19 +194,22 @@ class Fetcher:
 
     # --- 对外接口 ---
 
-    def get(self, url: str, validate=None) -> str:
+    def get(self, url: str, validate=None, encoding: str = 'utf-8') -> str:
         """抓取 url；validate(html)->bool 用于判断内容是否是期望页面。失败自动升级（auto 模式）。"""
-        wait = DELAY[0] + random.random() * (DELAY[1] - DELAY[0]) - (time.time() - self._last)
+        wait = (DELAY[0] + random.random() * (DELAY[1] - DELAY[0])) * self._delay_scale - (time.time() - self._last)
         if wait > 0:
             time.sleep(wait)
         try:
+            rl_count = 0
             while True:
                 name = LEVELS[self.level]
                 last_err = None
-                for attempt in range(2):
+                attempt = 0
+                while attempt < 2:
+                    attempt += 1
                     try:
                         if name == 'requests':
-                            html = self._get_requests(url)
+                            html = self._get_requests(url, encoding)
                         else:
                             html = self._get_browser(url, steel=(name == 'steel'))
                         if is_challenge(html):
@@ -206,9 +219,20 @@ class Fetcher:
                         return html
                     except LoginExpired:
                         raise
+                    except RateLimited as e:
+                        # 被限流：退避等待后重试（不计入失败次数），并放慢后续节奏
+                        rl_count += 1
+                        if rl_count > 6:
+                            last_err = e
+                            break
+                        wait_s = max(e.retry_after, min(15 * 2 ** (rl_count - 1), 180))
+                        self._delay_scale = min(self._delay_scale * 1.5, 4.0)
+                        print(f'[WARN] 429 限流，等待 {wait_s:.0f}s 后重试 (节奏 x{self._delay_scale:.1f})')
+                        time.sleep(wait_s)
+                        attempt -= 1
                     except Exception as e:
                         last_err = e
-                        print(f'[WARN] {name} 第 {attempt + 1} 次失败: {e}')
+                        print(f'[WARN] {name} 第 {attempt} 次失败: {e}')
                         time.sleep(2 + attempt * 3)
                 if self.auto and self.level < len(LEVELS) - 1:
                     self.level += 1

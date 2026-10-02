@@ -1,5 +1,5 @@
 """
-wenku8 页面抓取：多种方式可切换，供 main.py / fill_meta.py / gen_epub.py / build_batch.py 共用。
+wenku8 页面抓取：多种方式可切换，供 main.py / utils/catalog.py / gen_epub.py / build_batch.py 共用。
 
 抓取方式（LEVELS，按"成本从低到高"排列，失败时可自动向后升级）:
     requests    普通 requests。本机/国内 IP 可用（需 UA 为简短的 Mozilla/5.0，完整浏览器 UA 反而会被 challenge）

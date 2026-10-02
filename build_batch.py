@@ -1,7 +1,7 @@
 """
 批量为「仅 TXT 源」的小说生成分卷 EPUB，并上传到 GitHub Release（供网页下载）。
 
-- 目标来自 out/txt_meta.csv（见 fill_meta.py），状态记录在 out/epub_index.json
+- 目标来自 out/merged.csv（有 aid、有 TXT 源、没有蓝奏源的条目，见 merge.py），状态记录在 out/epub_index.json
 - 仅当 aid 尚未生成、或其 TXT 源有更新（文件名中的日期变化）时才（重新）生成
 - 每本生成后立即上传并保存状态，因此中断/超时后重跑即可继续
 
@@ -24,7 +24,7 @@ import pandas as pd
 from utils import Fetcher, LoginExpired
 from gen_epub import EPUB_OUT_DIR, build_novel
 
-META_CSV = os.path.join('out', 'txt_meta.csv')
+MERGED_CSV = os.path.join('out', 'merged.csv')
 INDEX_FILE = os.path.join('out', 'epub_index.json')
 TAG_SIZE = 200   # 每个 Release 容纳的 aid 范围（Release 最多 1000 个附件）
 MAX_FAILS = 3
@@ -56,17 +56,18 @@ def save_index(index: dict):
     os.replace(tmp, INDEX_FILE)
 
 
+def txt_only_targets() -> dict[int, tuple[str, str]]:
+    """需要生成重制版的小说：有 TXT 源、没有蓝奏 EPUB、且已对应到 aid。返回 {aid: (TXT 版本, 书名)}。"""
+    df = pd.read_csv(MERGED_CSV, encoding='utf-8-sig', dtype=str).fillna('')
+    df = df[(df['novel_link'] != '') & (df['download_url'] != '') & (df['dl_label'] == '')]
+    return {int(re.search(r'/book/(\d+)', r.novel_link).group(1)): (txt_version(r.download_url), r.main)
+            for r in df.itertuples()}
+
+
 def pick_targets(index: dict) -> list[tuple[int, str]]:
-    """[(aid, txt_version)]：每个 aid 取最新的 TXT 版本。"""
-    df = pd.read_csv(META_CSV, encoding='utf-8-sig', dtype=str)
-    latest = {}
-    for r in df.itertuples():
-        v = txt_version(r.download_url)
-        aid = int(r.aid)
-        if aid not in latest or v > latest[aid]:
-            latest[aid] = v
+    """[(aid, txt_version)]：尚未生成、或 TXT 版本有更新的。"""
     targets = []
-    for aid, v in sorted(latest.items()):
+    for aid, (v, _) in sorted(txt_only_targets().items()):
         entry = index.get(str(aid))
         if entry and entry.get('txt') == v and 'volumes' in entry:
             continue
@@ -106,10 +107,8 @@ def main():
 
     index = load_index()
     if args.aid:
-        versions = {}
-        for r in pd.read_csv(META_CSV, encoding='utf-8-sig', dtype=str).itertuples():
-            versions[int(r.aid)] = max(versions.get(int(r.aid), ''), txt_version(r.download_url))
-        targets = [(a, versions.get(a, '')) for a in args.aid]
+        known = txt_only_targets()
+        targets = [(a, known.get(a, ('', ''))[0]) for a in args.aid]
     else:
         targets = pick_targets(index)
     if args.max_novels:

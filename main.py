@@ -9,7 +9,8 @@ import json
 import os
 import pandas as pd
 
-from utils import LEVELS, Fetcher
+from merge import merge, read_dl
+from utils import LEVELS, Fetcher, catalog
 
 BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
 params = { 'keyword': '8691', 'charset': 'utf-8', 'page': 1 }
@@ -206,151 +207,33 @@ def scrape():
             f.seek(0)
             f.writelines(lines)
 
-# ========== Data Processing ==========
-def purify(text: str) -> str: # 只保留中文、英文和数字
-    text = re.sub(r'[^\u4e00-\u9fa5a-zA-Z0-9]', '', text)
-    return text
-
-CN_NUM = { '零': 0, '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10 }
+# ========== HTML Generation ==========
+CN_NUM = {'零': 0, '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10}
 
 def chinese_to_arabic(cn: str) -> int:
     if cn == '十':
         return 10
-    elif cn.startswith('十'):
+    if cn.startswith('十'):
         return 10 + CN_NUM.get(cn[1], 0)
-    elif cn.endswith('十'):
+    if cn.endswith('十'):
         return CN_NUM.get(cn[0], 0) * 10
-    elif '十' in cn:
-        parts = cn.split('十')
-        return CN_NUM.get(parts[0], 0) * 10 + CN_NUM.get(parts[1], 0)
-    else:
-        return CN_NUM.get(cn, 0)
+    if '十' in cn:
+        a, b = cn.split('十')
+        return CN_NUM.get(a, 0) * 10 + CN_NUM.get(b, 0)
+    return CN_NUM.get(cn, 0)
 
 def replace_chinese_numerals(s: str) -> str:
-    match = re.search(r'第([一二三四五六七八九十零]{1,3})卷', s)
-    if match:
-        cn_num = match.group(1)
-        arabic_num = chinese_to_arabic(cn_num)
-        s = s.replace(cn_num, f' {arabic_num} ')
-    match = re.search(r'第 (\S+) 卷', s)
-    if match:
-        s = s.replace('第 ', '')
-        s = s.replace(' 卷', '')
-    return s
+    """“第十三卷”->“13”，“第 3.5 卷”->“3.5”；其他（短篇集、外传 2……）原样返回"""
+    m = re.fullmatch(r'第\s*([一二三四五六七八九十零]{1,3})\s*卷', s.strip())
+    if m:
+        return str(chinese_to_arabic(m.group(1)))
+    m = re.fullmatch(r'第\s*([0-9.]+)\s*卷', s.strip())
+    return m.group(1) if m else s
 
-_prefix = ''
-IGNORED_TITLES = ['时间', '少女', '再见宣言', '强袭魔女', '秋之回忆', '秋之回忆2', '魔王', '青梅竹马', '弹珠汽水']
-
-def merge():
-    global _prefix
-    if _scraper == 'none':
-        _prefix = 'wenku8.lanzov.com'
-        print('[INFO] Skipping merge.')
-        return
-    
-    df_post = pd.read_csv(POST_LIST_FILE, encoding='utf-8')
-    df_post.drop_duplicates(subset=['novel_title'], keep='first', inplace=True)
-    df_post.reset_index(drop=True, inplace=True)
-    df_post['volume'] = df_post['post_title'].str.strip()   # 保留原称（如“第十三卷”“短篇集”）；列表按钮上的简写在 create_data 中生成
-    # df_post['post_main'] = df_post['novel_title'].apply(lambda x: x[:x.rfind('(')] if x[-1] == ')' else x)
-    df_post['post_alt'] = df_post['novel_title'].apply(lambda x: x[x.rfind('(')+1:-1] if x[-1] == ')' else "")
-    df_post['post_pure'] = df_post['novel_title'].apply(purify)
-    df_post['post_alt_pure'] = df_post['post_alt'].apply(purify)
-    df_post.drop(columns=['post_title'], inplace=True)
-
-    df_post['dl_label'] = ""
-    df_post['dl_pwd'] = ""
-    df_post['dl_update'] = ""
-    df_post['dl_remark'] = ""
-    df_post['txt_matched'] = False
-
-    # merge dl to post
-    with open(DL_FILE, 'r', encoding='utf-8') as f:
-        _ = f.readlines()
-        # <html><head><meta name="color-scheme" content="light dark"></head><body><pre style="word-wrap: break-word; white-space: pre-wrap;"> 网址前缀：wenku8.lanzov.com/
-        _prefix = _[0].split('：')[-1].strip() # ends with '/'
-        # print(f"[DEBUG] DL prefix: {_prefix}")
-        lines = _[2:]
-        for line in lines:
-            parts = line.strip().split()
-            if len(parts) < 4:
-                continue
-            mask = df_post['post_pure'].str.match(purify(parts[-1]))
-            if mask.any():
-                df_post.loc[mask, 'dl_update'] = parts[0]
-                df_post.loc[mask, 'dl_label'] = parts[1]
-                df_post.loc[mask, 'dl_pwd'] = parts[2]
-                if len(parts) > 4:
-                    # 注释：仅“更新台版/更新网译”去掉前两字，其余（补全旧作、更新短篇、修正错误……）完整保留
-                    df_post.loc[mask, 'dl_remark'] = parts[3][2:] if parts[3] in ('更新台版', '更新网译') else parts[3]
-            #     if mask.sum() > 1:
-            #         print(f'[WARN] {mask.sum()} entries matched for {parts[3]}')
-            # else:
-            #     print(f'[WARN] Failed to match {parts[3]}')
-    
-    # merge post to txt
-    df_txt = pd.read_csv(TXT_LIST_FILE, encoding='utf-8')
-    df_txt['txt_pure'] = df_txt['title'].apply(purify) # 4
-    df_txt['volume'] = '' # 5
-    df_txt['dl_label'] = '' # 6
-    df_txt['dl_pwd'] = '' # 7
-    df_txt['dl_update'] = None # 8
-    df_txt['dl_remark'] = '' # 9
-    df_txt['novel_title'] = '' # 10
-    df_txt['novel_link'] = '' # 11
-    for i in range(len(df_txt)):
-        _title = df_txt.iloc[i, 0]
-        if _title in IGNORED_TITLES:
-            continue
-        mask = df_post['post_pure'].str.match(df_txt.iloc[i, 4]) & (df_post['txt_matched'] == False)
-        match = None
-        if mask.any():
-            match = mask[mask].index[0]
-            # if mask.sum() > 1:
-            #     print(f'[WARN] {mask.sum()} entries matched for {_title}')
-            #     for j in range(len(df_post)):
-            #         if mask[j]:
-            #             print(f'    {df_post.iloc[j]["novel_title"]}')
-        else:
-            mask = df_post['post_alt_pure'].str.match(df_txt.iloc[i, 4]) & (df_post['txt_matched'] == False)
-            if mask.any():
-                match = mask[mask].index[0]
-                # if mask.sum() > 1:
-                #     print(f'[WARN] {mask.sum()} entries matched for {_title}')
-                #     for j in range(len(df_post)):
-                #         if mask[j]:
-                #             print(f'    {df_post.iloc[j]["novel_title"]}')
-        if match is not None:
-            df_txt.iloc[i, 5] = df_post.iloc[match]['volume']
-            df_txt.iloc[i, 6] = df_post.iloc[match]['dl_label']
-            df_txt.iloc[i, 7] = df_post.iloc[match]['dl_pwd']
-            df_txt.iloc[i, 8] = df_post.iloc[match]['dl_update']
-            df_txt.iloc[i, 9] = df_post.iloc[match]['dl_remark']
-            df_txt.iloc[i, 10] = df_post.iloc[match]['novel_title']
-            df_txt.iloc[i, 11] = df_post.iloc[match]['novel_link']
-            df_post.iloc[match, -1] = True
-    
-    _mask = df_post['txt_matched'] == False
-    for y in df_post[_mask].itertuples():
-        if y.dl_label == "":
-            continue
-        df_txt.loc[len(df_txt)] = ["", "", None, "", "", y.volume, y.dl_label, y.dl_pwd, y.dl_update, y.dl_remark, y.novel_title, y.novel_link]
-    
-    df_txt['title'] = df_txt.apply(lambda x: x['novel_title'] if x['novel_title'] else x['title'], axis=1)
-    df_txt['update'] = df_txt.apply(lambda x: x['dl_update'] if x['dl_update'] else x['date'], axis=1)
-    df_txt['main'] = df_txt['title'].apply(lambda x: x[:x.rfind('(')] if x[-1] == ')' else x)
-    df_txt['alt'] = df_txt['title'].apply(lambda x: x[x.rfind('(')+1:-1] if x[-1] == ')' else "")
-    df_txt.drop(columns=['title', 'date', 'txt_pure', 'novel_title'], inplace=True)
-    df_txt.sort_values(by=['update'], ascending=False, inplace=True)
-    df_txt.to_csv(MERGED_CSV, index=False, encoding='utf-8-sig')
-
-# ========== HTML Generation ==========
 GH_PROXY = 'https://gh-proxy.org/'   # 所有 GitHub 下载统一走该代理（页面内拼接）
 RAW_PREFIX = 'https://raw.githubusercontent.com/'
 TEMPLATE_FILE = os.path.join('source', 'template.html')
-TXT_META_CSV = os.path.join(OUT_DIR, 'txt_meta.csv')
 EPUB_INDEX_FILE = os.path.join(OUT_DIR, 'epub_index.json')
-CATALOG_FILE = os.path.join(OUT_DIR, 'wenku_catalog.json')
 
 def _s(v):
     """NaN/None -> ''，其余转 str 并去空白"""
@@ -359,20 +242,6 @@ def _s(v):
 def create_data():
     """合并后的条目 + 重制版 EPUB 索引 -> 页面内嵌的 JSON 数据。"""
     df = pd.read_csv(MERGED_CSV, encoding='utf-8-sig', dtype=str)
-
-    # 仅 TXT 源条目通过 txt_meta.csv 补全 wenku8 的 aid
-    txt_aid = {}
-    if os.path.exists(TXT_META_CSV):
-        meta = pd.read_csv(TXT_META_CSV, encoding='utf-8-sig', dtype=str)
-        txt_aid = dict(zip(meta['download_url'], meta['aid']))
-
-    # 蓝奏条目常缺作者：用 wenku8 全站目录（fill_meta.py 生成）按 aid 补全
-    cat_author = {}
-    if os.path.exists(CATALOG_FILE):
-        with open(CATALOG_FILE, 'r', encoding='utf-8') as f:
-            for page in json.load(f)['pages'].values():
-                for it in page:
-                    cat_author[str(it['aid'])] = it.get('author', '')
 
     built = {}
     if os.path.exists(EPUB_INDEX_FILE):
@@ -385,8 +254,8 @@ def create_data():
     for row in df.to_dict('records'):
         link, txt = _s(row['novel_link']), _s(row['download_url'])
         m = re.search(r'/book/(\d+)', link)
-        aid = m.group(1) if m else txt_aid.get(txt, '')
-        item = {'t': _s(row['main']), 'a': _s(row['alt']), 'au': _s(row['author']) or cat_author.get(aid, ''), 'u': _s(row['update']),
+        aid = m.group(1) if m else ''
+        item = {'t': _s(row['main']), 'a': _s(row['alt']), 'au': _s(row['author']), 'u': _s(row['update']),
                 'n': aid, 'l': _s(row['dl_label']), 'p': _s(row['dl_pwd']), 'v': _s(row['volume']),
                 'r': _s(row['dl_remark']),
                 'x': txt[len(RAW_PREFIX):] if txt.startswith(RAW_PREFIX) else txt}
@@ -398,11 +267,7 @@ def create_data():
             item['b'] = 1
         items.append({k: v for k, v in item.items() if v != ''})
     only_built = {it['n']: built[it['n']] for it in items if it.get('b')}
-    prefix = _prefix
-    if not prefix and os.path.exists(DL_FILE):   # 未运行 merge() 时（如仅重新生成页面）从 dl.txt 读取
-        with open(DL_FILE, 'r', encoding='utf-8') as f:
-            prefix = f.readline().split('：')[-1].strip()
-    lz = 'https://' + prefix.rstrip('/') + '/'
+    lz = 'https://' + read_dl()[0].rstrip('/') + '/'
     return {'items': items, 'built': only_built, 'lz': lz, 'gh': GH_PROXY}
 
 def create_html():
@@ -425,6 +290,14 @@ def main():
         os.mkdir(PUBLIC_DIR)
     
     scrape()
+    if _scraper != 'none':
+        fetcher = Fetcher(_scraper, fallback=True)
+        try:   # 增量刷新 wenku8 全站目录（新书/更新都在最近更新的前几页），用于把新条目对应到 aid
+            catalog.refresh(fetcher, pages=3)
+        except Exception as e:
+            print(f'[WARN] 目录刷新失败（沿用现有目录）: {e}')
+        finally:
+            fetcher.close()
     merge()
     create_html()
 

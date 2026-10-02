@@ -17,9 +17,7 @@ import os
 import re
 import sys
 
-import pandas as pd
-
-from build_batch import META_CSV, load_index, release_tag, save_index, txt_version, upload
+from build_batch import load_index, save_index, txt_only_targets, upload
 from gen_epub import MAX_SIDE, build_novel
 from utils import Fetcher
 
@@ -65,12 +63,10 @@ def main():
     req = parse_request(os.environ.get('ISSUE_BODY', ''))
     aid = req['aid']
 
-    meta = pd.read_csv(META_CSV, encoding='utf-8-sig', dtype=str)
-    rows = meta[meta['aid'] == str(aid)]
-    if rows.empty:
-        raise SystemExit(f'aid {aid} 不在仅 TXT 源的列表中，已拒绝')
-    version = max(txt_version(u) for u in rows['download_url'])
-    title = rows.iloc[0]['title']
+    known = txt_only_targets()
+    if aid not in known:
+        raise SystemExit(f'aid {aid} 不在“仅 TXT 源”的列表中（可能已有蓝奏 EPUB 源，或不存在），已拒绝')
+    version, title = known[aid]
 
     is_default = req['volumes'] is None and req['max_side'] == MAX_SIDE and req['images']
     index = load_index()

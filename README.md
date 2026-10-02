@@ -81,30 +81,33 @@ GitHub Actions 中通过 Secrets 提供：`WENKU_COOKIES`（Cookie）、`STEEL_A
 - `merge_csv()` 合并、去重
     - 输出：`out/txt_list.csv`
 
-运行 `main.py [scraper]`：
+运行 `main.py [scraper]`（`none` 表示只重新合并并生成页面，不联网）：
 
 - `scrape()` 获取最新的 EPUB 源下载列表
     - 输出：`out/dl.txt`, `out/post_list.csv`
-- `merge()` 合并、去重并与 TXT 源进行匹配（保留卷名原称与完整注释）
-    - 输出：`out/merged.csv`
+- 增量刷新 wenku8 全站目录的前 3 页（新书、更新都在这里），见下文
+- `merge()`（`merge.py`）把三个来源合并成 `out/merged.csv`，见下文
 - `create_html()` 以 `source/template.html` 为模板，嵌入数据生成单页
     - 输出：`docs/index.html`、`docs/epub.html`（跳转页）
-    - 数据来源：`out/merged.csv`、`out/txt_meta.csv`（补全 aid）、`out/wenku_catalog.json`（补全作者）、`out/epub_index.json`（已生成的重制版）
+    - 数据来源：`out/merged.csv`、`out/epub_index.json`（已生成的重制版）
 
 `scrape.yml` 每天自动运行 `main.py`，将 `out/`、`docs/` 提交到 `main` 并部署到 GitHub Pages；`deploy.yml` 在手动推送到 `main` 时直接部署 `docs/`。
 
-### 仅有 TXT 源的小说：补全元数据（`fill_meta.py`，低频）
+### 条目合并（`merge.py`、`utils/names.py`、`utils/catalog.py`）
 
-抓取 wenku8 全站目录（`out/wenku_catalog.json`），与 TXT 源按「书名 + 作者」匹配，得到 aid 与元数据（`out/txt_meta.csv`），未匹配的在 `out/txt_unmatched.csv`。每一步均可断点继续。
+论坛帖（EPUB）、TXT 源、蓝奏列表对同一本书的写法常常不同（简称/别名/译名、年份不同的多个 TXT 版本……），所以**以 wenku8 的 aid 为唯一标识**来合并，保证每本书只有一条：
 
-```bash
-python fill_meta.py                 # 目录 → 匹配 → 详情
-python fill_meta.py --match-only    # 只重新匹配，不联网
-```
+1. `out/wenku_catalog.json`：wenku8 全站目录（书名、作者 → aid，约 4300 本），是权威来源。`python -m utils.catalog` 补全抓取（可断点继续），`--refresh 3` 增量刷新；`main.py` 每天自动增量刷新。
+2. 论坛帖的 `novel_link` 本身带 aid；若帖子书名与该 aid 在目录中的书名几乎无关（链接填错），按书名在目录中重新对应。
+3. `dl.txt` 的名称 → 帖子 → aid（名称被截断时按前缀对应，多个候选时取最新帖子）。
+4. TXT 源（只有书名、作者）→ aid，分层匹配（`utils/names.py`）：人工别名表 → 书名精确（完整名 > 主书名 > 括号内别名，多个候选用作者裁决）→ 同作者模糊 → 全局模糊。书名中的数字必须一致；带“外传/官方/短篇”等标记的衍生作品不会被当成正传。
+5. 同一个 aid 只保留**最新**的 TXT 版本；书名、作者统一取目录里的写法；对应不上 aid 的 TXT 条目单独保留（`out/txt_unmatched.csv`，按书名+作者去重）。
+
+自动匹配不了的少数条目写在 `out/txt_alias.csv`（列 `title,aid`）。
 
 ### 重制 EPUB（`gen_epub.py`、`build_batch.py`、`build_request.py`）
 
-TXT 源的 EPUB 只有纯文本，所以对这些小说从 wenku8 重新抓取目录、正文与插图，生成带封面、简介、分卷目录的 EPUB3（`epub_maker.py` 直接用 `zipfile` 写入，生成结果可通过 epubcheck）。插图默认长边压缩到 1000px（JPEG），体积约为原图的 1/5。
+TXT 源的 EPUB 只有纯文本，所以对这些小说（`merged.csv` 中有 aid、有 TXT 源、没有蓝奏源的条目）从 wenku8 重新抓取目录、正文与插图，生成带封面、简介、分卷目录的 EPUB3（`epub_maker.py` 直接用 `zipfile` 写入，生成结果可通过 epubcheck）。插图默认长边压缩到 1000px（JPEG），体积约为原图的 1/5。
 
 ```bash
 python gen_epub.py --aid 129                       # 整本

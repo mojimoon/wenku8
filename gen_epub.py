@@ -26,7 +26,6 @@ import requests
 from bs4 import BeautifulSoup, NavigableString, Tag
 
 from epub_maker import Chapter, NovelMeta, Volume, create_epub, sniff_ext
-from fill_meta import parse_detail
 from utils import DOMAIN, LEVELS, Fetcher, FetchError, LoginExpired
 
 EPUB_OUT_DIR = os.path.join('out', 'epub')
@@ -71,6 +70,28 @@ def parse_toc(html: str, base: str) -> list[tuple[str, list[tuple[str, str]]]]:
             else:
                 volumes[-1][1].append(item)
     return [v for v in volumes if v[1]]
+
+
+def parse_detail(html: str) -> dict:
+    soup = BeautifulSoup(html, 'html.parser')
+    content = soup.find(id='content')
+    if content is None:
+        raise FetchError('详情页缺少 #content')
+    text = content.get_text('\n', strip=True)
+    result = {}
+    for key, pat in [('publisher', r'文库分类[：:]\s*(.+)'), ('author', r'小说作者[：:]\s*(.+)'),
+                     ('status', r'文章状态[：:]\s*(.+)'), ('update', r'最后更新[：:]\s*(\d{4}-\d{2}-\d{2})'),
+                     ('length', r'全文长度[：:]\s*(\d+)字'), ('tags', r'作品Tags[：:]\s*(.+)')]:
+        m = re.search(pat, text)
+        if m:
+            result[key] = m.group(1).strip()
+    m = re.search(r'内容简介[：:]\s*\n(.+?)\n阅读\n小说目录', text, re.DOTALL)
+    if m:
+        result['description'] = m.group(1).strip()
+    t = soup.title.text if soup.title else ''
+    if t:
+        result['title'] = t.split(' - ')[0].strip()
+    return result
 
 
 def parse_chapter(content_html: str) -> list[tuple[str, str]]:

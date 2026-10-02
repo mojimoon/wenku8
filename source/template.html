@@ -117,7 +117,7 @@ details summary{cursor:pointer;padding:10px 12px;font-size:.85rem;font-weight:60
 <p class="sub"><span><a href="https://github.com/mojimoon/wenku8" target="_blank" rel="noopener">mojimoon/wenku8</a></span><i> · </i><span>内容收集自网络，仅供学习交流</span><i> · </i><span>感谢 <a href="https://www.wenku8.net/modules/article/reviewslist.php?keyword=8691&charset=utf-8" target="_blank" rel="noopener">酷儿加冰</a>、<a href="https://github.com/ixinzhi" target="_blank" rel="noopener">布客新知</a></span></p>
 <p class="sub"><span><b>EPUB</b> 蓝奏云 EPUB，Calibre 生成（显示最新卷数，点击打开并复制密码）</span><i> · </i><span><b>TXT</b> 纯文本 EPUB（点击下载）</span><i> · </i><span><b>重制</b> 本站生成 EPUB（可点击详情下载或请求生成）</span></p>
 <div class="tools">
- <input type="search" id="q" placeholder="搜索标题、作者或 aid" autocomplete="off" aria-label="搜索">
+ <input type="search" id="q" placeholder="搜索标题、作者，#aid 只搜 aid" autocomplete="off" aria-label="搜索">
  <div class="chips" id="chips">
   <button class="chip" data-f="all" aria-pressed="true">全部</button>
   <button class="chip" data-f="epub" aria-pressed="false">蓝奏 EPUB</button>
@@ -171,7 +171,7 @@ function applyFilter(){
   if(flt==='epub'&&!it.l)return false;
   if(flt==='new'&&!it.b)return false;
   if(flt==='txt'&&(it.l||!it.x))return false;
-  return it.n===qa||(q?it.s.indexOf(q)>-1:!qa);
+  return it.n===qa||(q?it.s.indexOf(q)>-1:!qa);   // q 为空且 qa 有值：只匹配 aid
  });
  if(qa)view.sort(function(a,b){return(b.n===qa)-(a.n===qa)});   // aid 精确匹配置顶
  $('cnt').textContent=view.length+' / '+items.length;
@@ -190,7 +190,7 @@ function btns(it){
 function more(){
  var end=Math.min(shown+CH,view.length),h='';
  for(var k=shown;k<end;k++){var it=view[k],sa=[it.a,it.au].filter(Boolean).map(esc).join(' · ');
-  h+='<li data-i="'+it.i+'"><div class="m"><b>'+esc(it.t)+'</b>'+(it.a?'<small>'+esc(it.a)+'</small>':'')+'</div>'
+  h+='<li data-i="'+it.i+'"><div class="m">'+(qa&&it.n===qa?'<i class="p k">aid '+it.n+'</i> ':'')+'<b>'+esc(it.t)+'</b>'+(it.a?'<small>'+esc(it.a)+'</small>':'')+'</div>'
    +'<div class="au">'+esc(it.au||'')+'</div><div class="u">'+esc(it.u||'')+'</div><div class="sb">'+sa+'</div>'
    +'<div class="b">'+btns(it)+'</div></li>';
  }
@@ -200,9 +200,10 @@ new IntersectionObserver(function(e){if(e[0].isIntersecting&&shown<view.length)m
 
 var timer;
 $('q').addEventListener('input',function(){clearTimeout(timer);var v=this.value;timer=setTimeout(function(){
-  // aid：纯数字、“aid 123” 或 wenku8 链接（/book/123.htm、/novel/1/123/）
-  var m=v.match(/\/book\/(\d+)/)||v.match(/\/novel\/\d+\/(\d+)/)||v.match(/^\s*(?:aid\s*[:：=]?\s*)?(\d+)\s*$/i);
-  qa=m?m[1]:'';q=m&&!/^\s*\d+\s*$/.test(v)?'':norm(v);applyFilter()},120)});
+  // “#123”“aid 123”或 wenku8 链接：只匹配 aid；纯数字：aid 精确匹配置顶，同时搜索书名
+  var m=v.match(/\/book\/(\d+)/)||v.match(/\/novel\/\d+\/(\d+)/)||v.match(/^\s*(?:#|＃|aid\s*[:：=]?)\s*(\d+)\s*$/i),
+      d=v.match(/^\s*(\d+)\s*$/);
+  qa=m?m[1]:d?d[1]:'';q=m?'':norm(v);applyFilter()},120)});
 $('chips').addEventListener('click',function(e){
  var b=e.target.closest('.chip');if(!b||!b.dataset.f)return;
  flt=b.dataset.f;[].forEach.call(this.querySelectorAll('.chip[data-f]'),function(c){c.setAttribute('aria-pressed',c===b)});
@@ -245,8 +246,9 @@ list.addEventListener('click',function(e){
 
 // ── 详情弹窗（左：信息，右：按钮） ──
 var dlg=$('dlg'),cur=null;
+var VN={'1000':'重制版 EPUB（含封面、插图、目录）','1400':'重制版 EPUB（插图 1400px）','1600':'重制版 EPUB（插图 1600px）','orig':'重制版 EPUB（插图原图）'};
 function openDlg(it){
- cur=it;var h='',b=it.n&&built[it.n];
+ cur=it;var h='',bs=it.n&&built[it.n]||[],b=bs[0]&&bs[0].d==='1000'?bs[0]:null;
  $('dt').innerHTML=esc(it.t)+cp(it.t)+'<small>'+(it.a?esc(it.a)+cp(it.a)+' · ':'')+(it.au?esc(it.au)+cp(it.au)+' · ':'')+esc(it.u||'')+'</small>';
  $('dw').style.display=it.n?'inline-flex':'none';
  if(it.n)$('dw').href='https://www.wenku8.net/book/'+it.n+'.htm';else $('dw').removeAttribute('href');
@@ -254,13 +256,13 @@ function openDlg(it){
   h+='<div class="sec"><div class="r w"><div class="rl"><i class="p e">蓝奏 EPUB</i>'+(it.r?'<i class="p k">'+esc(it.r)+'</i>':'')+esc(it.v||'')+'</div>'
    +'<div class="rr">'+(it.p?'<span>密码 <code>'+esc(it.p)+'</code>'+cp(it.p)+'</span>':'')+'<button class="btn" data-a="lz">'+(it.p?'复制密码打开':'打开')+'</button></div></div></div>';
  }
- if(b){
-  h+='<div class="sec"><div class="r rh"><div class="rl"><i class="p n">重制</i>重制版 EPUB（含封面、插图、目录）</div><div class="rr">'
-   +(b.v.length>1?'<button class="btn s" data-a="all">依次下载全部</button>':'')+'</div></div>';
+ bs.forEach(function(b,bi){
+  h+='<div class="sec"><div class="r rh"><div class="rl"><i class="p n">重制</i>'+VN[b.d]+'</div><div class="rr">'
+   +(b.v.length>1?'<button class="btn s" data-a="all" data-k="'+bi+'">依次下载全部</button>':'')+'</div></div>';
   b.v.forEach(function(v,k){h+='<div class="r"><div class="rl">'+esc(v[1])+'<small>'+fmt(v[2])+'</small></div><div class="rr"><a class="btn s" href="'+esc(volUrl(it.n,b.t,v[0]))+'">下载</a></div></div>'});
   h+=(b.v.length>1?'<div class="note">“依次下载全部”会逐卷触发下载，如被浏览器拦截请允许“多个文件下载”。</div>':'')
    +(b.n?'<div class="note">已生成 '+b.v.length+' / '+b.n+' 卷，其余卷可在下方请求生成。</div>':'')+'</div>';
- }
+ });
  if(it.x){
   h+='<div class="sec"><div class="r"><div class="rl"><i class="p t">TXT</i>纯文本 EPUB<small>'+('不推荐（无排版插图）')+'</small></div>'
    +'<div class="rr"><a class="btn o s" href="'+esc(txtUrl(it))+'">下载</a></div></div></div>';
@@ -284,7 +286,7 @@ $('dx').addEventListener('click',function(){dlg.close()});
 dlg.addEventListener('click',function(e){if(e.target===dlg)dlg.close()});
 $('db').addEventListener('click',function(e){
  var t=e.target.closest('[data-a]');if(!t)return;
- var a=t.dataset.a,b=built[cur.n];
+ var a=t.dataset.a,b=(built[cur.n]||[])[t.dataset.k||0];
  if(a==='lz')openLz(cur);
  else if(a==='all')goAll(b.v.map(function(v){return volUrl(cur.n,b.t,v[0])}));
  else if(a==='req')window.open(issueUrl(cur),'_blank','noopener');

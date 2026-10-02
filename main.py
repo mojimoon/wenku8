@@ -249,10 +249,18 @@ def create_data():
             for aid, e in json.load(f).items():
                 if e.get('blocked'):
                     blocked.add(aid)
-                elif e.get('volumes') and e.get('tag'):
-                    built[aid] = {'t': e['tag'], 'v': [[v['file'], v['title'], v['size']] for v in e['volumes']]}
-                    if len(e['volumes']) < e.get('total', 0):
-                        built[aid]['n'] = e['total']   # 只生成了部分卷
+                    continue
+                # 各版本：默认 1000px 在前，其后为按需生成并缓存的 1400/1600/原图
+                versions = []
+                for name, slot in [('1000', e)] + sorted(e.get('variants', {}).items(), key=lambda x: x[0] == 'orig'):
+                    if slot.get('volumes') and slot.get('tag'):
+                        ver = {'d': name, 't': slot['tag'],
+                               'v': [[v['file'], v['title'], v['size']] for v in slot['volumes']]}
+                        if len(slot['volumes']) < slot.get('total', 0):
+                            ver['n'] = slot['total']   # 只生成了部分卷
+                        versions.append(ver)
+                if versions:
+                    built[aid] = versions
 
     items = []
     for row in df.to_dict('records'):

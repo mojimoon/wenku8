@@ -33,6 +33,7 @@ from gen_epub import EPUB_OUT_DIR, CopyrightBlocked, book_url, build_novel, pars
 
 MERGED_CSV = os.path.join('out', 'merged.csv')
 INDEX_FILE = os.path.join('out', 'epub_index.json')
+CHECKED_FILE = os.path.join('out', 'epub_checked.txt')   # 已检查、未下架的 aid（每行一个），避免重复检查
 REPO = os.environ.get('GITHUB_REPOSITORY', 'mojimoon/wenku8')
 TAG_SIZE = 200   # 每个 Release 容纳的 aid 范围（Release 最多 1000 个附件）
 MAX_FAILS = 3
@@ -163,7 +164,11 @@ def record_blocked(index: dict, aid: int, title: str):
 def check_blocked(fetcher: Fetcher, index: dict, budget: float):
     """只抓详情页，把版权下架的小说记入索引（页面据此隐藏“请求生成”）。"""
     start, found = time.time(), 0
-    todo = [a for a in sorted(txt_only_targets()) if str(a) not in index]
+    checked = set()
+    if os.path.exists(CHECKED_FILE):
+        with open(CHECKED_FILE, encoding='utf-8') as f:
+            checked = {int(x) for x in f.read().split()}
+    todo = [a for a in sorted(txt_only_targets()) if str(a) not in index and a not in checked]
     print(f'[check] 待检查 {len(todo)} 本')
     for i, aid in enumerate(todo, 1):
         if budget and (time.time() - start) / 60 > budget:
@@ -181,6 +186,9 @@ def check_blocked(fetcher: Fetcher, index: dict, budget: float):
             found += 1
             print(f'[check] aid={aid} {d.get("title", "")} 版权下架')
             save_index(index)
+        else:
+            with open(CHECKED_FILE, 'a', encoding='utf-8') as f:
+                f.write(f'{aid}\n')
         if i % 100 == 0:
             print(f'[check] {i}/{len(todo)}，下架 {found}')
     print(f'[check] 完成，新发现下架 {found} 本')

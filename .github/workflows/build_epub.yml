@@ -46,6 +46,11 @@ jobs:
       - name: Setup cookie
         run: echo "${{ secrets.WENKU_COOKIES }}" > COOKIE
 
+      # 先只抓详情页，把新出现的目标中版权下架的小说标记出来（已检查过的记在 out/epub_checked.txt）
+      - name: Check copyright-removed books
+        if: github.event_name != 'push'
+        run: python build_batch.py --check-blocked --scraper curl_cffi --time-budget 20
+
       - name: Build
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
@@ -62,7 +67,7 @@ jobs:
         run: |
           git config user.name "mojimoon"
           git config user.email "109803649+mojimoon@users.noreply.github.com"
-          git add out/epub_index.json
+          git add out/epub_index.json; [ -f out/epub_checked.txt ] && git add out/epub_checked.txt
           git diff --staged --quiet && exit 0
           git commit -m "chore: update epub index on $(date +'%Y-%m-%d %H:%M:%S')"
           git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}"

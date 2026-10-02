@@ -258,7 +258,7 @@ def create_data():
                 slots = [('1000', e)] + list(e.get('variants', {}).items())
                 for name, slot in sorted(slots, key=lambda x: VARIANT_ORDER.index(x[0]) if x[0] in VARIANT_ORDER else 99):
                     if slot.get('volumes') and slot.get('tag'):
-                        ver = {'d': name, 't': slot['tag'],
+                        ver = {'d': name, 't': slot['tag'], 'u': (slot.get('built_at') or '')[:10],
                                'v': [[v['file'], v['title'], v['size']] for v in slot['volumes']]}
                         if len(slot['volumes']) < slot.get('total', 0):
                             ver['n'] = slot['total']   # 只生成了部分卷
@@ -273,7 +273,7 @@ def create_data():
         aid = m.group(1) if m else ''
         item = {'t': _s(row['main']), 'a': _s(row['alt']), 'au': _s(row['author']), 'u': _s(row['update']),
                 'n': aid, 'l': _s(row['dl_label']), 'p': _s(row['dl_pwd']), 'v': _s(row['volume']),
-                'r': _s(row['dl_remark']),
+                'r': _s(row['dl_remark']), 'du': _s(row['dl_update']), 'xu': _s(row.get('txt_update')),
                 'x': txt[len(RAW_PREFIX):] if txt.startswith(RAW_PREFIX) else txt}
         if item['v']:
             vs = replace_chinese_numerals(item['v']).strip()   # “第七卷”->“7”，用于列表按钮
@@ -281,9 +281,11 @@ def create_data():
                 item['vs'] = vs
         if aid in built and not item['l']:   # 重制版仅用于没有蓝奏 EPUB 源的条目
             item['b'] = 1
+            item['u'] = max([item['u']] + [v['u'] for v in built[aid]])   # 更新日期取三个来源中最晚的
         elif aid in blocked and not item['l']:   # wenku8 版权下架，无法重制
             item['k'] = 1
         items.append({k: v for k, v in item.items() if v != ''})
+    items.sort(key=lambda it: it.get('u', ''), reverse=True)
     only_built = {it['n']: built[it['n']] for it in items if it.get('b')}
     lz = 'https://' + read_dl()[0].rstrip('/') + '/'
     return {'items': items, 'built': only_built, 'lz': lz, 'gh': GH_PROXY}

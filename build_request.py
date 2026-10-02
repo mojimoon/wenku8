@@ -1,21 +1,31 @@
 """
-按需生成：处理页面生成的 GitHub Issue（标题以 "[build]" 开头），生成分卷 EPUB 并输出回复内容。
+按需生成：按创建顺序逐个处理所有打开的 build-request Issue（队列），生成分卷 EPUB，回复下载链接并关闭 Issue。
 
 Issue 正文为 "key: value" 行（由页面预填，也可手写）:
     aid: 129
-    volumes: all            # 或 1,3
+    volumes: all            # 或 1,3（目录中的第几个卷）
     max_side: 1000          # 插图长边像素，0=原图
     images: yes             # yes / no
 
-输入来自环境变量 ISSUE_BODY（不可信内容，仅做严格解析），输出:
-    out/request_comment.md  回复到 Issue 的 Markdown（含下载链接）
+Issue 正文是不可信内容：通过 GitHub API 读取，仅做严格解析，不进入 shell。
 所有版本都按卷缓存并记入 out/epub_index.json：1000 为页面上的默认版本（Release epub-NN，与批量生成共用），
 其他（原图/1600/1400/800/600/无图）在 epub-var-NN；再次请求同一版本、同样的卷时直接回复。
+
+防滥用：
+  - 每个 GitHub 用户 1 小时内最多 5 条、24 小时内最多 10 条请求（按 Issue 创建时间计，含缓存命中与被拒绝的；
+    仓库所有者 / 成员 / 协作者不限），超出则回复并关闭
+  - 全站每 24 小时最多新抓取 50 本（只计需要抓取 wenku8 的请求，不含缓存命中与批量预生成，记录在
+    out/request_builds.txt），超出的请求加上 queued 标签留在队列里，名额恢复后由之后的运行自动处理
+  - 每次运行超过 --time-budget 分钟后不再开始新的请求（剩余的由下次运行继续）
 """
 
+import argparse
+import datetime
+import json
 import os
 import re
-import sys
+import subprocess
+import time
 
 from build_batch import (load_index, merge_slot, name_files, record_blocked, record_default, save_index,
                          txt_only_targets, update_notes, upload)
@@ -24,8 +34,16 @@ from utils import Fetcher
 
 GH_PROXY = 'https://gh-proxy.org/'
 REPO = os.environ.get('GITHUB_REPOSITORY', 'mojimoon/wenku8')
-COMMENT_FILE = os.path.join('out', 'request_comment.md')
 MAX_SIDES = {0, 600, 800, 1000, 1400, 1600}
+BUILD_LOG = os.path.join('out', 'request_builds.txt')   # 每行: ISO 时间 aid #issue（仅新抓取的）
+USER_LIMITS = ((datetime.timedelta(hours=1), 5), (datetime.timedelta(hours=24), 10))
+GLOBAL_LIMIT = 50          # 每 24 小时新抓取的上限
+EXEMPT = {'OWNER', 'MEMBER', 'COLLABORATOR'}
+LABEL, QUEUED = 'build-request', 'queued'
+
+
+class Deferred(Exception):
+    """全站名额已满，留在队列中稍后处理。"""
 
 
 def parse_request(body: str) -> dict:
@@ -69,16 +87,72 @@ def comment(title: str, aid: int, tag: str, vols: list[dict], note: str = '') ->
     return '\n'.join(lines)
 
 
-def write(text: str):
-    with open(COMMENT_FILE, 'w', encoding='utf-8') as f:
-        f.write(text)
+# ─── GitHub ──────────────────────────────────────────
+
+def gh(*args, input_text=None) -> str:
+    return subprocess.run(['gh', *args], capture_output=True, text=True, encoding='utf-8', check=True,
+                          input=input_text).stdout
 
 
-def main():
-    os.makedirs('out', exist_ok=True)
-    req = parse_request(os.environ.get('ISSUE_BODY', ''))
+def gh_api(path: str):
+    return json.loads(gh('api', path))
+
+
+def ts(s: str) -> datetime.datetime:
+    return datetime.datetime.fromisoformat(s.replace('Z', '+00:00'))
+
+
+def now() -> datetime.datetime:
+    return datetime.datetime.now(datetime.timezone.utc)
+
+
+def open_requests() -> list[dict]:
+    issues = gh_api(f'repos/{REPO}/issues?labels={LABEL}&state=open&sort=created&direction=asc&per_page=100')
+    return [i for i in issues if 'pull_request' not in i]
+
+
+def reply(number: int, text: str, close: str | None):
+    gh('issue', 'comment', str(number), '--body-file', '-', input_text=text)
+    if close:
+        gh('issue', 'close', str(number), '--reason', close)
+
+
+# ─── 限额 ────────────────────────────────────────────
+
+def user_over_limit(issue: dict) -> str:
+    """该用户在这条 Issue 创建前的窗口内（含本条）的请求数超限时，返回说明。"""
+    if issue.get('author_association') in EXEMPT:
+        return ''
+    login, created = issue['user']['login'], ts(issue['created_at'])
+    since = (created - USER_LIMITS[-1][0]).strftime('%Y-%m-%dT%H:%M:%SZ')
+    mine = gh_api(f'repos/{REPO}/issues?creator={login}&labels={LABEL}&state=all&since={since}&per_page=100')
+    times = [ts(i['created_at']) for i in mine if 'pull_request' not in i]
+    for window, limit in USER_LIMITS:
+        n = sum(created - window < t <= created for t in times)
+        if n > limit:
+            hours = int(window.total_seconds() // 3600)
+            return f'请求过于频繁：每个账号 {hours} 小时内最多 {limit} 条（本条为第 {n} 条），请稍后再提交。'
+    return ''
+
+
+def fresh_builds_24h() -> int:
+    if not os.path.exists(BUILD_LOG):
+        return 0
+    cutoff = now() - datetime.timedelta(hours=24)
+    with open(BUILD_LOG, encoding='utf-8') as f:
+        return sum(1 for line in f if line.strip() and ts(line.split()[0]) > cutoff)
+
+
+def log_build(aid: int, number: int):
+    with open(BUILD_LOG, 'a', encoding='utf-8') as f:
+        f.write(f'{now().strftime("%Y-%m-%dT%H:%M:%SZ")} {aid} #{number}\n')
+
+
+# ─── 处理 ────────────────────────────────────────────
+
+def process(req: dict, allow_fresh: bool) -> tuple[str, bool]:
+    """处理一条请求，返回 (回复内容, 是否新抓取)。拒绝时抛 SystemExit，名额已满时抛 Deferred。"""
     aid = req['aid']
-
     known = txt_only_targets()
     if aid not in known:
         raise SystemExit(f'aid {aid} 不在“仅 TXT 源”的列表中（可能已有蓝奏 EPUB 源，或不存在），已拒绝')
@@ -94,8 +168,9 @@ def main():
     total = slot.get('total', len(have)) if have else 0
     wanted = req['volumes'] or (set(range(1, total + 1)) if total else None)
     if wanted is not None and wanted <= have.keys():
-        write(comment(title, aid, slot['tag'], [have[i] for i in sorted(wanted)], '该版本此前已生成，直接提供下载。'))
-        return
+        return comment(title, aid, slot['tag'], [have[i] for i in sorted(wanted)], '该版本此前已生成，直接提供下载。'), False
+    if not allow_fresh:
+        raise Deferred()
     todo = wanted - have.keys() if wanted is not None else None
 
     fetcher = Fetcher('curl_cffi', fallback=True)
@@ -123,13 +198,49 @@ def main():
     update_notes(tag, index)
     vols = {v['index']: v for v in slot['volumes']}
     show = sorted(wanted) if wanted is not None else sorted(vols)
-    write(comment(info['title'], aid, tag, [vols[i] for i in show if i in vols], note))
+    return comment(info['title'], aid, tag, [vols[i] for i in show if i in vols], note), True
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--time-budget', type=float, default=40, help='分钟；超过后不再开始新的请求')
+    args = ap.parse_args()
+    os.makedirs('out', exist_ok=True)
+    start = time.time()
+    queue = open_requests()
+    print(f'[request] 队列中 {len(queue)} 条')
+    for issue in queue:
+        if (time.time() - start) / 60 > args.time_budget:
+            print('[request] 达到时间预算，剩余请求留给下次运行')
+            break
+        number = issue['number']
+        labels = {l['name'] for l in issue.get('labels', [])}
+        print(f'\n[request] #{number} {issue["title"]}（{issue["user"]["login"]}）')
+        try:
+            why = user_over_limit(issue)
+            if why:
+                print('    ' + why)
+                reply(number, why, 'not planned')
+                continue
+            req = parse_request(issue.get('body') or '')
+            text, fresh = process(req, allow_fresh=fresh_builds_24h() < GLOBAL_LIMIT)
+            if fresh:
+                log_build(req['aid'], number)
+            reply(number, text, 'completed')
+        except Deferred:
+            print('    全站名额已满，留在队列')
+            if QUEUED not in labels:
+                gh('issue', 'edit', str(number), '--add-label', QUEUED)
+                reply(number, f'今日生成名额已满（全站每 24 小时最多新生成 {GLOBAL_LIMIT} 本），请求已排队，'
+                              '名额恢复后会自动处理并在此回复，无需重新提交。', None)
+        except (ValueError, SystemExit) as e:
+            print(f'    拒绝: {e}')
+            reply(number, f'无法处理该请求：{e}', 'not planned')
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            reply(number, f'生成失败（{type(e).__name__}），请稍后重新提交，或查看 Actions 日志。', 'not planned')
 
 
 if __name__ == '__main__':
-    try:
-        main()
-    except (ValueError, SystemExit) as e:
-        write(f'无法处理该请求：{e}')
-        print(e, file=sys.stderr)
-        sys.exit(1)
+    main()

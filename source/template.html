@@ -86,7 +86,7 @@ select,.fi{height:32px;border:1px solid var(--line);border-radius:6px;background
 .vg summary::-webkit-details-marker{display:none}
 .vg summary::before{content:'▶';font-size:.6rem;margin-right:6px;transition:transform .15s}
 .vg[open] summary::before{transform:rotate(90deg)}
-.vg summary small{font-weight:400;color:var(--muted);font-size:.78rem;margin-left:6px}
+.vg summary small{font-weight:400}
 .vg summary .btn{margin-left:auto;font-weight:400}
 .vi{display:inline-block;min-width:1.6em;margin-right:6px;color:var(--muted);font-size:.78rem;font-variant-numeric:tabular-nums}
 details summary{cursor:pointer;padding:10px 12px;font-size:.85rem;font-weight:600;background:var(--hover)}
@@ -259,19 +259,19 @@ function openDlg(it){
  $('dw').style.display=it.n?'inline-flex':'none';
  if(it.n)$('dw').href='https://www.wenku8.net/book/'+it.n+'.htm';else $('dw').removeAttribute('href');
  if(it.l){
-  h+='<div class="sec"><div class="r w"><div class="rl"><i class="p e">蓝奏 EPUB</i>'+(it.r?'<i class="p k">'+esc(it.r)+'</i>':'')+esc(it.v||'')+'</div>'
+  h+='<div class="sec"><div class="r w"><div class="rl"><i class="p e">蓝奏 EPUB</i>'+(it.r?'<i class="p k">'+esc(it.r)+'</i>':'')+esc(it.v||'')+(it.du?'<small>'+esc(it.du)+'</small>':'')+'</div>'
    +'<div class="rr">'+(it.p?'<span>密码 <code>'+esc(it.p)+'</code>'+cp(it.p)+'</span>':'')+'<button class="btn" data-a="lz">'+(it.p?'复制密码打开':'打开')+'</button></div></div></div>';
  }
  // 重制版：每个分辨率一个可折叠分组（已按分辨率从高到低排序），默认展开最高的
  bs.forEach(function(b,bi){
-  h+='<div class="sec"><details class="vg"'+(bi?'':' open')+'><summary><i class="p n">重制</i>'+VN[b.d]+'<small>'+b.v.length+(b.n?' / '+b.n:'')+' 卷</small>'
+  h+='<div class="sec"><details class="vg"'+(bi?'':' open')+'><summary><span class="rl"><i class="p n">重制</i>'+VN[b.d]+'<small>'+[b.u,b.v.length+(b.n?' / '+b.n:'')+' 卷'].filter(Boolean).join(' · ')+'</small></span>'
    +(b.v.length>1?'<button class="btn s" data-a="all" data-k="'+bi+'">依次下载全部</button>':'')+'</summary>';
   b.v.forEach(function(v,k){h+='<div class="r"><div class="rl"><span class="vi" title="卷序号（目录中的顺序）">'+(+(v[0].match(/v(\d+)\.epub$/)||[0,k+1])[1])+'</span>'+esc(v[1])+'<small>'+fmt(v[2])+'</small></div><div class="rr"><a class="btn s" href="'+esc(volUrl(it.n,b.t,v[0]))+'">下载</a></div></div>'});
   h+=(b.v.length>1?'<div class="note">“依次下载全部”会逐卷触发下载，如被浏览器拦截请允许“多个文件下载”。</div>':'')
    +(b.n?'<div class="note">已生成 '+b.v.length+' / '+b.n+' 卷，其余卷可在下方请求生成。</div>':'')+'</details></div>';
  });
  if(it.x){
-  h+='<div class="sec"><div class="r"><div class="rl"><i class="p t">TXT</i>纯文本 EPUB<small>'+('不推荐（无排版插图）')+'</small></div>'
+  h+='<div class="sec"><div class="r"><div class="rl"><i class="p t">TXT</i>纯文本 EPUB<small>'+esc(it.xu||'')+'</small></div>'
    +'<div class="rr"><a class="btn o s" href="'+esc(txtUrl(it))+'">下载</a></div></div></div>';
  }
  if(it.k){

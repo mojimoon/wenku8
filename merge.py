@@ -32,7 +32,7 @@ ALIAS_FILE = os.path.join(OUT_DIR, 'txt_alias.csv')
 MERGED_CSV = os.path.join(OUT_DIR, 'merged.csv')
 BOOK_URL = 'https://www.wenku8.net/book/{}.htm'
 COLUMNS = ['author', 'download_url', 'volume', 'dl_label', 'dl_pwd', 'dl_update', 'dl_remark',
-           'novel_link', 'update', 'main', 'alt']
+           'novel_link', 'update', 'main', 'alt', 'txt_update']
 
 
 def _aid(link) -> int | None:
@@ -141,13 +141,14 @@ def merge(verbose: bool = True) -> pd.DataFrame:
             'dl_label': l['label'] if l else '', 'dl_pwd': l['pwd'] if l else '',
             'dl_update': l['date'] if l else '', 'dl_remark': l['remark'] if l else '',
             'novel_link': BOOK_URL.format(aid),
-            'update': l['date'] if l else t['date'], 'main': main, 'alt': alt,
+            'update': max(l['date'] if l else '', t['date'] if t else ''), 'main': main, 'alt': alt,
+            'txt_update': t['date'] if t else '',
         })
     for r in orphans.values():
         main, alt = split_alt(r['title'])
         rows.append({'author': r.get('author') or '', 'download_url': r['download_url'], 'volume': '',
                      'dl_label': '', 'dl_pwd': '', 'dl_update': '', 'dl_remark': '', 'novel_link': '',
-                     'update': r['date'], 'main': main, 'alt': alt})
+                     'update': r['date'], 'main': main, 'alt': alt, 'txt_update': r['date']})
 
     df = pd.DataFrame(rows, columns=COLUMNS).fillna('')
     df = df.sort_values(by='update', ascending=False, kind='stable')

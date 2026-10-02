@@ -1,70 +1,75 @@
 name: Build EPUB on request
 
-# 页面上的「请求生成」会预填一个标题以 "[build]" 开头、标签为 build-request 的 Issue；
-# 本工作流解析它、生成分卷 EPUB 并回复下载链接。
-# 注意：issues 事件只会运行默认分支（main）上的工作流。
+# 页面上的「请求生成」会预填一个标题以 "[build]" 开头、标签为 build-request 的 Issue。
+# 本工作流把所有打开的 build-request Issue 当作队列，按创建顺序逐个生成分卷 EPUB、回复下载链接并关闭。
+# 防滥用（每用户 5 条/小时、10 条/天；全站每天新抓取 50 本）见 build_request.py。
+# 注意：issues / schedule 事件只会运行默认分支（main）上的工作流。
 on:
   issues:
     types: [opened]
+  schedule:
+    - cron: '17 * * * *'        # 每小时检查一次队列（被取消的运行、排队中的请求由此补上）
+  workflow_dispatch:
 
 permissions:
   contents: write
   issues: write
   actions: write
 
+# 与批量预生成共用并发组：同一时间只有一个任务在抓取 wenku8。
+# 等待中的运行可能被更新的运行替换，但队列在每次运行时重新读取，不会丢请求。
 concurrency:
-  group: build-request
+  group: wenku8-crawl
   cancel-in-progress: false
 
 jobs:
   build:
-    if: startsWith(github.event.issue.title, '[build]') || contains(github.event.issue.labels.*.name, 'build-request')
+    if: github.event_name != 'issues' || startsWith(github.event.issue.title, '[build]') || contains(github.event.issue.labels.*.name, 'build-request')
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
       GH_TOKEN: ${{ github.token }}
-      ISSUE_NUMBER: ${{ github.event.issue.number }}
-      # 不可信输入只通过环境变量传递，由 build_request.py 严格解析
-      ISSUE_BODY: ${{ github.event.issue.body }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Label new issue
+        if: github.event_name == 'issues'
+        run: gh issue edit "${{ github.event.issue.number }}" --repo "$GITHUB_REPOSITORY" --add-label build-request || true
 
-      - name: Label
-        run: gh issue edit "$ISSUE_NUMBER" --add-label build-request || true
+      - name: Check queue
+        id: queue
+        run: |
+          n=$(gh issue list --repo "$GITHUB_REPOSITORY" --label build-request --state open --json number --jq length)
+          echo "队列中 $n 条"
+          echo "n=$n" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        if: steps.queue.outputs.n != '0'
 
       - uses: actions/setup-python@v5
+        if: steps.queue.outputs.n != '0'
         with:
           python-version: '3.12'
           cache: pip
 
-      - run: pip install -r requirements.txt
+      - if: steps.queue.outputs.n != '0'
+        run: pip install -r requirements.txt
 
       - name: Setup cookie
+        if: steps.queue.outputs.n != '0'
         run: echo "${{ secrets.WENKU_COOKIES }}" > COOKIE
 
       - name: Build
-        id: build
-        run: python build_request.py
+        if: steps.queue.outputs.n != '0'
+        run: python build_request.py --time-budget 40
 
-      - name: Reply
-        if: always()
-        run: |
-          [ -f out/request_comment.md ] || echo "生成失败，请稍后重试或查看 Actions 日志。" > out/request_comment.md
-          gh issue comment "$ISSUE_NUMBER" --body-file out/request_comment.md
-          if [ "${{ steps.build.outcome }}" = "success" ]; then
-            gh issue close "$ISSUE_NUMBER" --reason completed
-          else
-            gh issue close "$ISSUE_NUMBER" --reason "not planned"
-          fi
-
-      # 索引变化（新生成 / 标记版权下架）后提交，并触发 Pages 部署（只部署，不爬取）
+      # 索引变化（新生成 / 标记版权下架）后提交，并触发 Pages 部署（只重新生成页面，不爬取）
       - name: Commit index
-        if: always()
+        if: always() && steps.queue.outputs.n != '0'
         run: |
           git config user.name "mojimoon"
           git config user.email "109803649+mojimoon@users.noreply.github.com"
           git add out/epub_index.json
+          [ -f out/request_builds.txt ] && git add out/request_builds.txt
           git diff --staged --quiet && exit 0
-          git commit -m "chore: update epub index (request #$ISSUE_NUMBER)"
+          git commit -m "chore: update epub index (on-demand builds)"
           git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}"
           gh workflow run deploy.yml --ref "${GITHUB_REF_NAME}"

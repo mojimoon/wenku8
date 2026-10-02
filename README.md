@@ -116,9 +116,11 @@ python gen_epub.py --aid 129 --split               # 按卷：out/epub/129/v01.e
 python gen_epub.py --aid 129 --split --max-side 800 --no-images --volumes 1,3
 ```
 
-- **批量预生成** `.github/workflows/build_epub.yml`（每日定时 / 手动触发）：`build_batch.py` 为尚未生成、或 TXT 源已更新的小说按卷生成并上传到 Release（`epub-NN`，每个 Release 容纳 200 个 aid），状态记录在 `out/epub_index.json`（每个 aid 一行）。Release 附件带有「书名 卷名 (aid)」显示名，Release 说明列出其中每本小说的 aid、书名、作者、卷数。wenku8 因版权下架的小说（正文只剩下架公告）会被识别并标记为 `blocked`，页面不再提供请求生成；`python build_batch.py --check-blocked` 可只扫描详情页预先标记。每本生成后立即上传并保存，中断后重跑即可继续；章节有 429 限流时自动退避。
+- **批量预生成** `.github/workflows/build_epub.yml`（每 4 小时一次、起始时间随机推迟 0~20 分钟 / 手动触发）：`build_batch.py` 为尚未生成、或 TXT 源已更新的小说按卷生成并上传到 Release（`epub-NN`，每个 Release 容纳 200 个 aid），状态记录在 `out/epub_index.json`（每个 aid 一行）。Release 附件带有「书名 卷名 (aid)」显示名，Release 说明列出其中每本小说的 aid、书名、作者、卷数。wenku8 因版权下架的小说（正文只剩下架公告）会被识别并标记为 `blocked`，页面不再提供请求生成；`python build_batch.py --check-blocked` 可只扫描详情页预先标记。每次运行约 40 分钟后完成当前这本就结束（降低被识别为爬虫的风险），每本生成后立即上传并保存，剩余的由下次运行继续；章节有 429 限流时自动退避。
 - **按需生成** `.github/workflows/build_request.yml`：网页「请求生成」会预填一个标题以 `[build]` 开头的 Issue（模板 `.github/ISSUE_TEMPLATE/build-request.md`），`build_request.py` 解析后生成并在 Issue 回复下载链接。Issue 带 `build-request` 标签。所有版本都按卷缓存并记入索引：1000px（默认）在 `epub-NN`，原图/1600/1400/800/600/无图在 `epub-var-NN`；再次请求相同版本、相同卷时直接回复。页面弹窗按分辨率从高到低列出已有版本（可折叠，默认展开最高的）。卷序号是目录中的顺序，不一定等于卷名里的数字。
-    - Issue 内容视为不可信输入，仅通过环境变量传入并严格校验（aid 必须在仅 TXT 源列表中，分辨率限定枚举）
+    - 所有打开的 build-request Issue 构成队列，按创建顺序逐个处理（Issue 打开时立即触发，另每小时检查一次）；与批量预生成共用并发组，同一时间只有一个任务抓取 wenku8
+    - 防滥用：每个 GitHub 账号 1 小时最多 5 条、24 小时最多 10 条（含缓存命中，仓库成员不限）；全站每 24 小时最多新抓取 50 本（不含缓存命中与批量预生成，记录在 `out/request_builds.txt`），超出的加 `queued` 标签排队，之后自动处理
+    - Issue 内容视为不可信输入，经 GitHub API 读取并严格校验（aid 必须在仅 TXT 源列表中，分辨率限定枚举）
     - `issues` 事件只会运行默认分支（`main`）上的工作流
 - 其他 Issue 模板：`.github/ISSUE_TEMPLATE/feedback.yml`（意见、建议与数据错误反馈）
 

@@ -2,15 +2,21 @@ name: Build EPUB
 
 # 为「仅 TXT 源」的小说从 wenku8 重新抓取并生成分卷 EPUB，上传到 Release（epub-NN）。
 # 状态记录在 out/epub_index.json：仅当 TXT 源有更新时才会重新生成。
+# 为降低被识别为爬虫的风险，每天分 6 次短时运行（起始时间随机推迟 0~20 分钟），
+# 每次累计约 40 分钟后完成当前这本书就结束，剩余的由下次运行继续。
 on:
   schedule:
-    - cron: '0 20 * * *'
+    - cron: '43 1/4 * * *'
   workflow_dispatch:
     inputs:
       max_novels:
         description: '本次最多处理的小说数（0=不限，受时间预算约束）'
         type: number
-        default: 150
+        default: 0
+      time_budget:
+        description: '时间预算（分钟）：超过后完成当前这本就结束'
+        type: number
+        default: 40
       aid:
         description: '只处理指定 aid（空格分隔，留空=自动选择）'
         type: string
@@ -23,17 +29,22 @@ permissions:
   contents: write
   actions: write
 
+# 与按需生成共用并发组：同一时间只有一个任务在抓取 wenku8
 concurrency:
-  group: build-epub
+  group: wenku8-crawl
   cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 120
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
+      - name: Random delay
+        if: github.event_name == 'schedule'
+        run: sleep $((RANDOM % 1200))
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
@@ -49,7 +60,7 @@ jobs:
       # 先只抓详情页，把新出现的目标中版权下架的小说标记出来（已检查过的记在 out/epub_checked.txt）
       - name: Check copyright-removed books
         if: github.event_name != 'push'
-        run: python build_batch.py --check-blocked --scraper curl_cffi --time-budget 20
+        run: python build_batch.py --check-blocked --scraper curl_cffi --time-budget 10
 
       - name: Build
         run: |
@@ -58,7 +69,7 @@ jobs:
           elif [ -n "${{ inputs.aid }}" ]; then
             ARGS="--aid ${{ inputs.aid }}"
           else
-            ARGS="--max-novels ${{ inputs.max_novels || 150 }} --time-budget 300"
+            ARGS="--max-novels ${{ inputs.max_novels || 0 }} --time-budget ${{ inputs.time_budget || 40 }}"
           fi
           python build_batch.py --scraper curl_cffi $ARGS
 

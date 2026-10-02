@@ -82,7 +82,12 @@ code{background:var(--hover);padding:1px 6px;border-radius:4px}
 .note{padding:8px 12px;color:var(--muted);font-size:.78rem;border-top:1px solid var(--line)}
 select,.fi{height:32px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg);padding:0 8px;font:inherit;font-size:.85rem;max-width:11rem}
 .fi{width:9rem}
+.vg summary{display:flex;align-items:center;gap:2px;list-style:none}
+.vg summary::-webkit-details-marker{display:none}
+.vg summary::before{content:'▶';font-size:.6rem;margin-right:6px;transition:transform .15s}
+.vg[open] summary::before{transform:rotate(90deg)}
 .vg summary small{font-weight:400;color:var(--muted);font-size:.78rem;margin-left:6px}
+.vg summary .btn{margin-left:auto;font-weight:400}
 .vi{display:inline-block;min-width:1.6em;margin-right:6px;color:var(--muted);font-size:.78rem;font-variant-numeric:tabular-nums}
 details summary{cursor:pointer;padding:10px 12px;font-size:.85rem;font-weight:600;background:var(--hover)}
 @media(max-width:640px){
@@ -259,8 +264,8 @@ function openDlg(it){
  }
  // 重制版：每个分辨率一个可折叠分组（已按分辨率从高到低排序），默认展开最高的
  bs.forEach(function(b,bi){
-  h+='<div class="sec"><details class="vg"'+(bi?'':' open')+'><summary><i class="p n">重制</i>'+VN[b.d]+'<small>'+b.v.length+(b.n?' / '+b.n:'')+' 卷</small></summary>'
-   +(b.v.length>1?'<div class="r rh"><div class="rl"><small>含封面、插图、分卷目录</small></div><div class="rr"><button class="btn s" data-a="all" data-k="'+bi+'">依次下载全部</button></div></div>':'');
+  h+='<div class="sec"><details class="vg"'+(bi?'':' open')+'><summary><i class="p n">重制</i>'+VN[b.d]+'<small>'+b.v.length+(b.n?' / '+b.n:'')+' 卷</small>'
+   +(b.v.length>1?'<button class="btn s" data-a="all" data-k="'+bi+'">依次下载全部</button>':'')+'</summary>';
   b.v.forEach(function(v,k){h+='<div class="r"><div class="rl"><span class="vi" title="卷序号（目录中的顺序）">'+(+(v[0].match(/v(\d+)\.epub$/)||[0,k+1])[1])+'</span>'+esc(v[1])+'<small>'+fmt(v[2])+'</small></div><div class="rr"><a class="btn s" href="'+esc(volUrl(it.n,b.t,v[0]))+'">下载</a></div></div>'});
   h+=(b.v.length>1?'<div class="note">“依次下载全部”会逐卷触发下载，如被浏览器拦截请允许“多个文件下载”。</div>':'')
    +(b.n?'<div class="note">已生成 '+b.v.length+' / '+b.n+' 卷，其余卷可在下方请求生成。</div>':'')+'</details></div>';
@@ -288,6 +293,7 @@ $('dx').addEventListener('click',function(){dlg.close()});
 dlg.addEventListener('click',function(e){if(e.target===dlg)dlg.close()});
 $('db').addEventListener('click',function(e){
  var t=e.target.closest('[data-a]');if(!t)return;
+ if(t.closest('summary'))e.preventDefault();   // 标题行里的按钮不触发折叠
  var a=t.dataset.a,b=(built[cur.n]||[])[t.dataset.k||0];
  if(a==='lz')openLz(cur);
  else if(a==='all')goAll(b.v.map(function(v){return volUrl(cur.n,b.t,v[0])}));

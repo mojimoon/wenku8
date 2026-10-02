@@ -82,6 +82,8 @@ code{background:var(--hover);padding:1px 6px;border-radius:4px}
 .note{padding:8px 12px;color:var(--muted);font-size:.78rem;border-top:1px solid var(--line)}
 select,.fi{height:32px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg);padding:0 8px;font:inherit;font-size:.85rem;max-width:11rem}
 .fi{width:9rem}
+.vg summary small{font-weight:400;color:var(--muted);font-size:.78rem;margin-left:6px}
+.vi{display:inline-block;min-width:1.6em;margin-right:6px;color:var(--muted);font-size:.78rem;font-variant-numeric:tabular-nums}
 details summary{cursor:pointer;padding:10px 12px;font-size:.85rem;font-weight:600;background:var(--hover)}
 @media(max-width:640px){
  body{font-size:14px}
@@ -200,9 +202,8 @@ new IntersectionObserver(function(e){if(e[0].isIntersecting&&shown<view.length)m
 
 var timer;
 $('q').addEventListener('input',function(){clearTimeout(timer);var v=this.value;timer=setTimeout(function(){
-  // “#123”“aid 123”或 wenku8 链接：只匹配 aid；纯数字：aid 精确匹配置顶，同时搜索书名
-  var m=v.match(/\/book\/(\d+)/)||v.match(/\/novel\/\d+\/(\d+)/)||v.match(/^\s*(?:#|＃|aid\s*[:：=]?)\s*(\d+)\s*$/i),
-      d=v.match(/^\s*(\d+)\s*$/);
+  // 纯数字：aid 精确匹配的置顶，同时照常搜索书名；粘贴 wenku8 链接则按其中的 aid 查找
+  var m=v.match(/\/book\/(\d+)/)||v.match(/\/novel\/\d+\/(\d+)/),d=v.match(/^\s*(\d+)\s*$/);
   qa=m?m[1]:d?d[1]:'';q=m?'':norm(v);applyFilter()},120)});
 $('chips').addEventListener('click',function(e){
  var b=e.target.closest('.chip');if(!b||!b.dataset.f)return;
@@ -246,9 +247,9 @@ list.addEventListener('click',function(e){
 
 // ── 详情弹窗（左：信息，右：按钮） ──
 var dlg=$('dlg'),cur=null;
-var VN={'1000':'重制版 EPUB（含封面、插图、目录）','1400':'重制版 EPUB（插图 1400px）','1600':'重制版 EPUB（插图 1600px）','orig':'重制版 EPUB（插图原图）'};
+var VN={'orig':'插图原图','1600':'插图 1600px','1400':'插图 1400px','1000':'插图 1000px','800':'插图 800px','600':'插图 600px','noimg':'无插图'};
 function openDlg(it){
- cur=it;var h='',bs=it.n&&built[it.n]||[],b=bs[0]&&bs[0].d==='1000'?bs[0]:null;
+ cur=it;var h='',bs=it.n&&built[it.n]||[];
  $('dt').innerHTML=esc(it.t)+cp(it.t)+'<small>'+(it.a?esc(it.a)+cp(it.a)+' · ':'')+(it.au?esc(it.au)+cp(it.au)+' · ':'')+esc(it.u||'')+'</small>';
  $('dw').style.display=it.n?'inline-flex':'none';
  if(it.n)$('dw').href='https://www.wenku8.net/book/'+it.n+'.htm';else $('dw').removeAttribute('href');
@@ -256,12 +257,13 @@ function openDlg(it){
   h+='<div class="sec"><div class="r w"><div class="rl"><i class="p e">蓝奏 EPUB</i>'+(it.r?'<i class="p k">'+esc(it.r)+'</i>':'')+esc(it.v||'')+'</div>'
    +'<div class="rr">'+(it.p?'<span>密码 <code>'+esc(it.p)+'</code>'+cp(it.p)+'</span>':'')+'<button class="btn" data-a="lz">'+(it.p?'复制密码打开':'打开')+'</button></div></div></div>';
  }
+ // 重制版：每个分辨率一个可折叠分组（已按分辨率从高到低排序），默认展开最高的
  bs.forEach(function(b,bi){
-  h+='<div class="sec"><div class="r rh"><div class="rl"><i class="p n">重制</i>'+VN[b.d]+'</div><div class="rr">'
-   +(b.v.length>1?'<button class="btn s" data-a="all" data-k="'+bi+'">依次下载全部</button>':'')+'</div></div>';
-  b.v.forEach(function(v,k){h+='<div class="r"><div class="rl">'+esc(v[1])+'<small>'+fmt(v[2])+'</small></div><div class="rr"><a class="btn s" href="'+esc(volUrl(it.n,b.t,v[0]))+'">下载</a></div></div>'});
+  h+='<div class="sec"><details class="vg"'+(bi?'':' open')+'><summary><i class="p n">重制</i>'+VN[b.d]+'<small>'+b.v.length+(b.n?' / '+b.n:'')+' 卷</small></summary>'
+   +(b.v.length>1?'<div class="r rh"><div class="rl"><small>含封面、插图、分卷目录</small></div><div class="rr"><button class="btn s" data-a="all" data-k="'+bi+'">依次下载全部</button></div></div>':'');
+  b.v.forEach(function(v,k){h+='<div class="r"><div class="rl"><span class="vi" title="卷序号（目录中的顺序）">'+(+(v[0].match(/v(\d+)\.epub$/)||[0,k+1])[1])+'</span>'+esc(v[1])+'<small>'+fmt(v[2])+'</small></div><div class="rr"><a class="btn s" href="'+esc(volUrl(it.n,b.t,v[0]))+'">下载</a></div></div>'});
   h+=(b.v.length>1?'<div class="note">“依次下载全部”会逐卷触发下载，如被浏览器拦截请允许“多个文件下载”。</div>':'')
-   +(b.n?'<div class="note">已生成 '+b.v.length+' / '+b.n+' 卷，其余卷可在下方请求生成。</div>':'')+'</div>';
+   +(b.n?'<div class="note">已生成 '+b.v.length+' / '+b.n+' 卷，其余卷可在下方请求生成。</div>':'')+'</details></div>';
  });
  if(it.x){
   h+='<div class="sec"><div class="r"><div class="rl"><i class="p t">TXT</i>纯文本 EPUB<small>'+('不推荐（无排版插图）')+'</small></div>'
@@ -270,11 +272,11 @@ function openDlg(it){
  if(it.k){
   h+='<div class="sec"><div class="r"><div class="rl"><i class="p k">版权下架</i>轻小说文库已因版权问题下架本书正文，无法重制</div></div></div>';
  }else if(it.n&&!it.l){
-  h+='<div class="sec"><details'+(b?'':' open')+'><summary>'+(b?'重新生成 / 自定义分辨率、无图':'重制版尚未生成：请求生成')+'</summary>'
+  h+='<div class="sec"><details'+(bs.length?'':' open')+'><summary>'+(bs.length?'重新生成 / 其他分辨率、无图':'重制版尚未生成：请求生成')+'</summary>'
    +'<div class="r"><div class="rl">插图分辨率<small>长边像素，越小越快、文件越小</small></div><div class="rr"><select id="rq-r">'
    +'<option value="1000" selected>1000（推荐）</option><option value="1400">1400</option><option value="1600">1600</option><option value="800">800</option><option value="600">600</option><option value="0">原图</option></select></div></div>'
    +'<div class="r"><div class="rl">不含插图<small>最快，文件最小</small></div><div class="rr"><input type="checkbox" id="rq-i"></div></div>'
-   +'<div class="r"><div class="rl">只生成指定卷<small>卷序号，逗号分隔；留空为全部</small></div><div class="rr"><input class="fi" id="rq-v" placeholder="如 1,3" inputmode="numeric"></div></div>'
+   +'<div class="r"><div class="rl">只生成指定卷<small>卷序号，逗号分隔；留空为全部。序号是目录中的顺序（第几个卷），不一定等于卷名中的数字</small></div><div class="rr"><input class="fi" id="rq-v" placeholder="如 1,3" inputmode="numeric"></div></div>'
    +'<div class="r w"><div class="rl"><small>将在 GitHub 打开预填的 Issue（需登录），提交后由 Actions 自动生成，约数分钟至半小时，完成后在 Issue 中回复下载链接。</small></div>'
    +'<div class="rr"><button class="btn" data-a="req">提交请求</button></div></div></details></div>';
  }

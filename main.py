@@ -239,6 +239,9 @@ def _s(v):
     """NaN/None -> ''，其余转 str 并去空白"""
     return '' if v is None or (isinstance(v, float) and pd.isna(v)) else str(v).strip()
 
+VARIANT_ORDER = ['orig', '1600', '1400', '1000', '800', '600', 'noimg']
+
+
 def create_data():
     """合并后的条目 + 重制版 EPUB 索引 -> 页面内嵌的 JSON 数据。"""
     df = pd.read_csv(MERGED_CSV, encoding='utf-8-sig', dtype=str)
@@ -250,9 +253,10 @@ def create_data():
                 if e.get('blocked'):
                     blocked.add(aid)
                     continue
-                # 各版本：默认 1000px 在前，其后为按需生成并缓存的 1400/1600/原图
+                # 各版本按分辨率从高到低：原图 > 1600 > 1400 > 1000（默认，批量生成）> 800 > 600 > 无图
                 versions = []
-                for name, slot in [('1000', e)] + sorted(e.get('variants', {}).items(), key=lambda x: x[0] == 'orig'):
+                slots = [('1000', e)] + list(e.get('variants', {}).items())
+                for name, slot in sorted(slots, key=lambda x: VARIANT_ORDER.index(x[0]) if x[0] in VARIANT_ORDER else 99):
                     if slot.get('volumes') and slot.get('tag'):
                         ver = {'d': name, 't': slot['tag'],
                                'v': [[v['file'], v['title'], v['size']] for v in slot['volumes']]}

@@ -9,14 +9,12 @@ Issue 正文为 "key: value" 行（由页面预填，也可手写）:
 
 输入来自环境变量 ISSUE_BODY（不可信内容，仅做严格解析），输出:
     out/request_comment.md  回复到 Issue 的 Markdown（含下载链接）
-含插图且分辨率 >= 1000（含原图）的结果按卷缓存并记入 out/epub_index.json（1000 即页面上的默认版本），
-再次请求同一版本时直接回复；其他参数（600/800/无图）临时上传到 Release epub-custom，不入索引。
+所有版本都按卷缓存并记入 out/epub_index.json：1000 为页面上的默认版本（Release epub-NN，与批量生成共用），
+其他（原图/1600/1400/800/600/无图）在 epub-var-NN；再次请求同一版本、同样的卷时直接回复。
 """
 
 import os
 import re
-import shutil
-import subprocess
 import sys
 
 from build_batch import (load_index, merge_slot, name_files, record_blocked, record_default, save_index,
@@ -27,7 +25,6 @@ from utils import Fetcher
 GH_PROXY = 'https://gh-proxy.org/'
 REPO = os.environ.get('GITHUB_REPOSITORY', 'mojimoon/wenku8')
 COMMENT_FILE = os.path.join('out', 'request_comment.md')
-CUSTOM_TAG = 'epub-custom'
 MAX_SIDES = {0, 600, 800, 1000, 1400, 1600}
 
 
@@ -49,12 +46,11 @@ def parse_request(body: str) -> dict:
     return {'aid': aid, 'volumes': only, 'max_side': max_side, 'images': images}
 
 
-def variant_of(req: dict) -> tuple[str, bool]:
-    """(版本名, 是否缓存)。1000 为默认版本（版本名为空）。"""
-    name = 'orig' if req['max_side'] == 0 else str(req['max_side'])
+def variant_of(req: dict) -> str:
+    """版本名：1000 为默认版本（空串），其他为 orig / 1600 / 1400 / 800 / 600 / noimg。"""
     if not req['images']:
-        return 'noimg', False
-    return ('' if req['max_side'] == MAX_SIDE else name), (req['max_side'] == 0 or req['max_side'] >= 1000)
+        return 'noimg'
+    return '' if req['max_side'] == MAX_SIDE else ('orig' if req['max_side'] == 0 else str(req['max_side']))
 
 
 def link(tag: str, name: str) -> str:
@@ -92,12 +88,12 @@ def main():
     if entry.get('blocked'):
         raise SystemExit(f'《{title}》已因版权问题被轻小说文库下架（章节内容为空），无法生成')
 
-    variant, cached = variant_of(req)
-    slot = (entry if not variant else entry.get('variants', {}).get(variant, {})) if cached else {}
+    variant = variant_of(req)
+    slot = entry if not variant else entry.get('variants', {}).get(variant, {})
     have = {v['index']: v for v in slot.get('volumes', [])} if slot.get('txt') == version else {}
     total = slot.get('total', len(have)) if have else 0
     wanted = req['volumes'] or (set(range(1, total + 1)) if total else None)
-    if cached and wanted is not None and wanted <= have.keys():
+    if wanted is not None and wanted <= have.keys():
         write(comment(title, aid, slot['tag'], [have[i] for i in sorted(wanted)], '该版本此前已生成，直接提供下载。'))
         return
     todo = wanted - have.keys() if wanted is not None else None
@@ -112,22 +108,6 @@ def main():
         raise SystemExit(str(e))
     finally:
         fetcher.close()
-
-    if not cached:   # 600 / 800 / 无图：临时文件
-        name_files(info, f'{variant}-tmp')
-        if subprocess.run(['gh', 'release', 'view', CUSTOM_TAG], capture_output=True).returncode != 0:
-            subprocess.run(['gh', 'release', 'create', CUSTOM_TAG, '--title', CUSTOM_TAG,
-                            '--notes', '按需生成的临时版本（600/800 像素或无插图），不定期清理。'], check=True)
-        out_dir = os.path.join('out', 'epub', str(aid))
-        paths = []
-        for v in info['volumes']:
-            dst = os.path.join(out_dir, f'{aid}-{v["file"]}')
-            shutil.copyfile(os.path.join(out_dir, v['local']), dst)
-            label = f'{info["title"]} {v["title"]} [{variant}] (aid {aid})'.replace('#', '＃')
-            paths.append(f'{dst}#{label}')
-        subprocess.run(['gh', 'release', 'upload', CUSTOM_TAG, *paths, '--clobber'], check=True)
-        write(comment(info['title'], aid, CUSTOM_TAG, info['volumes'], f'临时版本（{variant}），不定期清理。'))
-        return
 
     name_files(info, variant)
     tag = upload(aid, info, variant)

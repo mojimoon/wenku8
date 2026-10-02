@@ -8,8 +8,8 @@
 
 索引条目（每个 aid 一行）:
     {txt, title, author, built_at, src_update, tag, total, volumes: [{index, title, file, size, ...}],
-     variants: {"1400"|"1600"|"orig": {txt, tag, total, built_at, volumes}}}   # 其他分辨率的缓存（按需生成）
-Release 附件名为 {aid}-{file}：默认 1000px 在 epub-NN（aid//200），其他缓存分辨率在 epub-var-NN。
+     variants: {"orig"|"1600"|"1400"|"800"|"600"|"noimg": {txt, tag, total, built_at, volumes}}}   # 其他版本（按需生成）
+Release 附件名为 {aid}-{file}：默认 1000px 在 epub-NN（aid//200），其他版本在 epub-var-NN。
 
 用法:
     python build_batch.py --max-novels 50 --time-budget 300   # 在 Actions 中
@@ -125,7 +125,7 @@ def update_notes(tag: str, index: dict):
                 rows.append(f'| [{aid}](https://www.wenku8.net/book/{aid}.htm) | {e.get("title", "")} | '
                             f'{e.get("author", "")} | {variant} | {len(s["volumes"])}/{s.get("total", len(s["volumes"]))} '
                             f'| {s.get("built_at", "")[:10]} |')
-    kind = '其他分辨率（按需生成的缓存）' if '-var-' in tag else '插图长边 1000px（默认）'
+    kind = '其他分辨率 / 无插图（按需生成）' if '-var-' in tag else '插图长边 1000px（默认）'
     notes = '\n'.join([f'wenku8 重制版分卷 EPUB，{kind}。附件名为 `{{aid}}-[分辨率-]v{{卷序号}}.epub`。', '',
                        '| aid | 书名 | 作者 | 分辨率 | 卷数 | 生成时间 |', '|---|---|---|---|---|---|', *rows])
     subprocess.run(['gh', 'release', 'edit', tag, '--notes', notes[:120000]], check=True)

@@ -243,12 +243,16 @@ def create_data():
     """合并后的条目 + 重制版 EPUB 索引 -> 页面内嵌的 JSON 数据。"""
     df = pd.read_csv(MERGED_CSV, encoding='utf-8-sig', dtype=str)
 
-    built = {}
+    built, blocked = {}, set()
     if os.path.exists(EPUB_INDEX_FILE):
         with open(EPUB_INDEX_FILE, 'r', encoding='utf-8') as f:
             for aid, e in json.load(f).items():
-                if e.get('volumes') and e.get('tag'):
+                if e.get('blocked'):
+                    blocked.add(aid)
+                elif e.get('volumes') and e.get('tag'):
                     built[aid] = {'t': e['tag'], 'v': [[v['file'], v['title'], v['size']] for v in e['volumes']]}
+                    if len(e['volumes']) < e.get('total', 0):
+                        built[aid]['n'] = e['total']   # 只生成了部分卷
 
     items = []
     for row in df.to_dict('records'):
@@ -265,6 +269,8 @@ def create_data():
                 item['vs'] = vs
         if aid in built and not item['l']:   # 重制版仅用于没有蓝奏 EPUB 源的条目
             item['b'] = 1
+        elif aid in blocked and not item['l']:   # wenku8 版权下架，无法重制
+            item['k'] = 1
         items.append({k: v for k, v in item.items() if v != ''})
     only_built = {it['n']: built[it['n']] for it in items if it.get('b')}
     lz = 'https://' + read_dl()[0].rstrip('/') + '/'

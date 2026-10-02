@@ -1,6 +1,7 @@
 name: Deploy Pages
 
-# 手动 push 到 main 时：直接部署 docs/ 下的网页，不运行爬虫
+# 手动 push 到 main，或重制版 EPUB 索引更新后（build_epub / build_request 通过 workflow_dispatch 触发）：
+# 用仓库里现有的 out/ 数据重新生成页面并部署，不运行爬虫
 on:
   push:
     branches:
@@ -8,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -26,6 +27,27 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Regenerate page (no scraping)
+        run: python main.py none
+
+      - name: Commit page if changed
+        run: |
+          git config user.name "mojimoon"
+          git config user.email "109803649+mojimoon@users.noreply.github.com"
+          git add docs/
+          git diff --staged --quiet && exit 0
+          git commit -m "chore: regenerate page [skip ci]"
+          git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" || true
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

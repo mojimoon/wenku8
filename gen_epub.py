@@ -35,6 +35,12 @@ SUMMARY_FILE = os.path.join('out', 'epub_summary.json')
 IMAGE_WORKERS = 4
 MAX_SIDE = 1000       # 插图长边上限（像素）
 JPEG_QUALITY = 80
+# 版权下架的小说：详情页有公告，章节页只剩这一句（无法重制）
+COPYRIGHT_NOTICE = '因版权问题，文库不再提供该小说'
+
+
+class CopyrightBlocked(FetchError):
+    """wenku8 因版权问题下架了该小说的在线阅读（章节内容为空），无法生成。"""
 
 
 # ─── 小说页面解析 ───────────────────────────────────────
@@ -91,6 +97,8 @@ def parse_detail(html: str) -> dict:
     t = soup.title.text if soup.title else ''
     if t:
         result['title'] = t.split(' - ')[0].strip()
+    if COPYRIGHT_NOTICE in text:
+        result['blocked'] = True
     return result
 
 
@@ -217,6 +225,8 @@ def build_novel(fetcher: Fetcher, aid: int, max_chapters: int = 0, skip_update: 
     """max_side: 插图长边上限（0=原图）；with_images=False 不含插图；only_volumes: 只生成这些卷（目录中的序号）。"""
     detail = parse_detail(fetcher.get(book_url(aid), lambda h: 'id="content"' in h))
     title = detail.get('title') or str(aid)
+    if detail.get('blocked'):
+        raise CopyrightBlocked(f'《{title}》已因版权问题被轻小说文库下架，无法获取正文')
     if skip_update and detail.get('update') == skip_update:
         print('    无更新，跳过')
         return None
@@ -225,6 +235,7 @@ def build_novel(fetcher: Fetcher, aid: int, max_chapters: int = 0, skip_update: 
     toc = parse_toc(fetcher.get(toc_url(aid), lambda h: 'vcss' in h, encoding='gbk'), toc_url(aid))
     if not toc:
         raise FetchError('目录为空')
+    total_volumes = len(toc)
     toc = [(vi, t, c) for vi, (t, c) in enumerate(toc, 1) if not only_volumes or vi in only_volumes]
     if not toc:
         raise FetchError('指定的卷不存在')
@@ -242,6 +253,8 @@ def build_novel(fetcher: Fetcher, aid: int, max_chapters: int = 0, skip_update: 
             chapter_blocks[url] = parse_chapter(fetch_chapter(fetcher, aid, url))
             if n % 20 == 0 or n == total:
                 print(f'      章节 {n}/{total}')
+            if n == 3 and all(any(COPYRIGHT_NOTICE in v for k, v in b if k == 'p') for b in chapter_blocks.values()):
+                raise CopyrightBlocked(f'《{title}》的章节内容已因版权问题被下架，无法获取正文')
 
     # 2. 图片：按出现顺序编号（全书唯一），并发下载并压缩
     urls = []
@@ -301,7 +314,7 @@ def build_novel(fetcher: Fetcher, aid: int, max_chapters: int = 0, skip_update: 
     )
     chapter_total = sum(len(v.chapters) for _, v in volumes)
     result = {'aid': aid, 'title': title, 'author': base['author'], 'last_update': base['modified'],
-              'chapter_count': chapter_total, 'built_at': datetime.datetime.now().isoformat()}
+              'chapter_count': chapter_total, 'total_volumes': total_volumes, 'built_at': datetime.datetime.now().isoformat()}
 
     # 4. 输出
     if not split:

@@ -14,7 +14,7 @@ An automated crawler and static site generator for light novel ebooks from [轻�
 - **TXT 源**：纯文本 EPUB（无样式、无插图），特别感谢 [布客新知](https://github.com/ixinzhi) 整理
 - **重制 EPUB**：对没有蓝奏 EPUB 的小说，由 GitHub Actions 从源站重新抓取生成，含封面、插图、简介和分卷目录，**按卷下载**
     - 日常批量预生成，也可在详情窗口中「请求生成」：选择插图分辨率、是否含插图、指定卷，提交预填好的 Issue 后由 Actions 自动生成并回复下载链接
-- 搜索书名/别名/作者，按来源筛选；适配手机与深色模式；书名、作者、密码均可一键复制
+- 搜索书名/别名/作者或 aid（也可直接粘贴 wenku8 链接），按来源筛选；适配手机与深色模式；书名、作者、密码均可一键复制
 - 页面为单个 HTML（数据与样式内联，无外部 CSS/JS），所有 GitHub 文件统一通过 [gh-proxy.org](https://gh-proxy.org/) 下载
 - 旧的 `epub.html` 会跳转到 `index.html?f=epub`
 
@@ -91,7 +91,7 @@ GitHub Actions 中通过 Secrets 提供：`WENKU_COOKIES`（Cookie）、`STEEL_A
     - 输出：`docs/index.html`、`docs/epub.html`（跳转页）
     - 数据来源：`out/merged.csv`、`out/epub_index.json`（已生成的重制版）
 
-`scrape.yml` 每天自动运行 `main.py`，将 `out/`、`docs/` 提交到 `main` 并部署到 GitHub Pages；`deploy.yml` 在手动推送到 `main` 时直接部署 `docs/`。
+`scrape.yml` 每天自动运行 `main.py`，将 `out/`、`docs/` 提交到 `main` 并部署到 GitHub Pages；`deploy.yml` 在手动推送到 `main`、或重制版索引更新后（由 `build_epub.yml` / `build_request.yml` 触发）用现有 `out/` 数据重新生成页面并部署，不运行爬虫。
 
 ### 条目合并（`merge.py`、`utils/names.py`、`utils/catalog.py`）
 
@@ -115,8 +115,8 @@ python gen_epub.py --aid 129 --split               # 按卷：out/epub/129/v01.e
 python gen_epub.py --aid 129 --split --max-side 800 --no-images --volumes 1,3
 ```
 
-- **批量预生成** `.github/workflows/build_epub.yml`（每日定时 / 手动触发）：`build_batch.py` 为尚未生成、或 TXT 源已更新的小说按卷生成并上传到 Release（`epub-NN`，每个 Release 容纳 200 个 aid），状态记录在 `out/epub_index.json`（每个 aid 一行）。每本生成后立即上传并保存，中断后重跑即可继续；章节有 429 限流时自动退避。
-- **按需生成** `.github/workflows/build_request.yml`：网页「请求生成」会预填一个标题以 `[build]` 开头的 Issue（模板 `.github/ISSUE_TEMPLATE/build-request.md`），`build_request.py` 解析后生成并在 Issue 回复下载链接。默认参数的结果会计入 `epub_index.json`，其他参数的结果上传到 `epub-custom`。
+- **批量预生成** `.github/workflows/build_epub.yml`（每日定时 / 手动触发）：`build_batch.py` 为尚未生成、或 TXT 源已更新的小说按卷生成并上传到 Release（`epub-NN`，每个 Release 容纳 200 个 aid），状态记录在 `out/epub_index.json`（每个 aid 一行）。Release 附件带有「书名 卷名 (aid)」显示名，Release 说明列出其中每本小说的 aid、书名、作者、卷数。wenku8 因版权下架的小说（正文只剩下架公告）会被识别并标记为 `blocked`，页面不再提供请求生成；`python build_batch.py --check-blocked` 可只扫描详情页预先标记。每本生成后立即上传并保存，中断后重跑即可继续；章节有 429 限流时自动退避。
+- **按需生成** `.github/workflows/build_request.yml`：网页「请求生成」会预填一个标题以 `[build]` 开头的 Issue（模板 `.github/ISSUE_TEMPLATE/build-request.md`），`build_request.py` 解析后生成并在 Issue 回复下载链接。Issue 带 `build-request` 标签。含插图且分辨率 ≥ 1000（含原图）的结果按卷缓存：1000px 即页面上的默认版本（`epub-NN`），1400/1600/原图在 `epub-var-NN`，再次请求相同版本时直接回复；600/800/无图为临时版本，上传到 `epub-custom`。
     - Issue 内容视为不可信输入，仅通过环境变量传入并严格校验（aid 必须在仅 TXT 源列表中，分辨率限定枚举）
     - `issues` 事件只会运行默认分支（`main`）上的工作流
 - 其他 Issue 模板：`.github/ISSUE_TEMPLATE/feedback.yml`（意见、建议与数据错误反馈）

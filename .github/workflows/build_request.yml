@@ -1,6 +1,7 @@
 name: Build EPUB on request
 
-# 页面上的「请求生成」会预填一个标题以 "[build]" 开头的 Issue；本工作流解析它、生成分卷 EPUB 并回复下载链接。
+# 页面上的「请求生成」会预填一个标题以 "[build]" 开头、标签为 build-request 的 Issue；
+# 本工作流解析它、生成分卷 EPUB 并回复下载链接。
 # 注意：issues 事件只会运行默认分支（main）上的工作流。
 on:
   issues:
@@ -9,6 +10,7 @@ on:
 permissions:
   contents: write
   issues: write
+  actions: write
 
 concurrency:
   group: build-request
@@ -16,7 +18,7 @@ concurrency:
 
 jobs:
   build:
-    if: startsWith(github.event.issue.title, '[build]')
+    if: startsWith(github.event.issue.title, '[build]') || contains(github.event.issue.labels.*.name, 'build-request')
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
@@ -26,6 +28,9 @@ jobs:
       ISSUE_BODY: ${{ github.event.issue.body }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Label
+        run: gh issue edit "$ISSUE_NUMBER" --add-label build-request || true
 
       - uses: actions/setup-python@v5
         with:
@@ -38,6 +43,7 @@ jobs:
         run: echo "${{ secrets.WENKU_COOKIES }}" > COOKIE
 
       - name: Build
+        id: build
         run: python build_request.py
 
       - name: Reply
@@ -45,13 +51,20 @@ jobs:
         run: |
           [ -f out/request_comment.md ] || echo "生成失败，请稍后重试或查看 Actions 日志。" > out/request_comment.md
           gh issue comment "$ISSUE_NUMBER" --body-file out/request_comment.md
-          gh issue close "$ISSUE_NUMBER" --reason completed
+          if [ "${{ steps.build.outcome }}" = "success" ]; then
+            gh issue close "$ISSUE_NUMBER" --reason completed
+          else
+            gh issue close "$ISSUE_NUMBER" --reason "not planned"
+          fi
 
+      # 索引变化（新生成 / 标记版权下架）后提交，并触发 Pages 部署（只部署，不爬取）
       - name: Commit index
-        if: success()
+        if: always()
         run: |
           git config user.name "mojimoon"
           git config user.email "109803649+mojimoon@users.noreply.github.com"
           git add out/epub_index.json
-          git diff --staged --quiet || git commit -m "chore: update epub index (request #$ISSUE_NUMBER) [skip ci]"
+          git diff --staged --quiet && exit 0
+          git commit -m "chore: update epub index (request #$ISSUE_NUMBER)"
           git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}"
+          gh workflow run deploy.yml --ref "${GITHUB_REF_NAME}"

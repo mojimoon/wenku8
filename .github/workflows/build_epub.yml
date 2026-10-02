@@ -21,6 +21,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: build-epub
@@ -62,5 +63,8 @@ jobs:
           git config user.name "mojimoon"
           git config user.email "109803649+mojimoon@users.noreply.github.com"
           git add out/epub_index.json
-          git diff --staged --quiet || git commit -m "chore: update epub index on $(date +'%Y-%m-%d %H:%M:%S') [skip ci]"
+          git diff --staged --quiet && exit 0
+          git commit -m "chore: update epub index on $(date +'%Y-%m-%d %H:%M:%S')"
           git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}"
+          # GITHUB_TOKEN 的 push 不会触发其他工作流，这里显式触发 Pages 部署（只重新生成页面，不爬取）
+          [ "${GITHUB_REF_NAME}" = "main" ] && gh workflow run deploy.yml --ref main || true

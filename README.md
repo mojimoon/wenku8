@@ -6,8 +6,6 @@ An automated crawler and static site generator for light novel ebooks from [轻�
 
 [![Deploy](https://github.com/mojimoon/wenku8/actions/workflows/deploy.yml/badge.svg)](https://github.com/mojimoon/wenku8/actions/workflows/deploy.yml) [![Scrape and Update](https://github.com/mojimoon/wenku8/actions/workflows/scrape.yml/badge.svg)](https://github.com/mojimoon/wenku8/actions/workflows/scrape.yml) [![Build EPUB](https://github.com/mojimoon/wenku8/actions/workflows/build_epub.yml/badge.svg)](https://github.com/mojimoon/wenku8/actions/workflows/build_epub.yml)
 
-![screenshot](img/screenshot.png)
-
 自动化从 [轻小说文库](https://www.wenku8.net) 获取 EPUB 格式电子书，并将结果整合为单页网页 [wenku.mojimoon.top](https://wenku.mojimoon.top)：
 
 - **蓝奏 EPUB**：Calibre 生成，来自论坛整理（括号/卷名为最新卷）。点击按钮会复制密码并打开蓝奏云
@@ -15,14 +13,17 @@ An automated crawler and static site generator for light novel ebooks from [轻�
 - **重制 EPUB**：对没有蓝奏 EPUB 的小说，由 GitHub Actions 从源站重新抓取生成，含封面、插图、简介和分卷目录，**按卷下载**
     - 日常批量预生成，也可在详情窗口中「请求生成」：选择插图分辨率、是否含插图、指定卷，提交预填好的 Issue 后由 Actions 自动生成并回复下载链接
 - 搜索书名/别名/作者（输入数字时 aid 相同的条目置顶，也可直接粘贴 wenku8 链接），按来源筛选；适配手机与深色模式；书名、作者、密码均可一键复制
-- 页面为单个 HTML（数据与样式内联，无外部 CSS/JS），所有 GitHub 文件统一通过 [gh-proxy.org](https://gh-proxy.org/) 下载
-- 旧的 `epub.html` 会跳转到 `index.html?f=epub`
 
 ## Star History
 
 **如果您觉得这个项目有用，点个 Star 支持一下吧！Thanks! 😊**
 
 [![Star History Chart](https://api.star-history.com/chart?repos=mojimoon/wenku8&type=date&legend=top-left)](https://www.star-history.com/?repos=mojimoon/wenku8&type=date&legend=top-left)
+
+## Screenshots
+
+![](images/screenshot1.png)
+![](images/screenshot2.png)
 
 ## Usage
 

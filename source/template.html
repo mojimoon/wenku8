@@ -177,9 +177,11 @@ function applyFilter(){
  view=items.filter(function(it){
   if(flt==='epub'&&!it.l)return false;
   if(flt==='new'&&!it.b)return false;
-  if(flt==='txt'&&(it.l||!it.x))return false;
+  if(flt==='txt'&&(it.l||it.b||!it.x))return false;   // 仅 TXT：排除已有蓝奏或重制版的
   return it.n===qa||(q?it.s.indexOf(q)>-1:!qa);   // q 为空且 qa 有值：只匹配 aid
  });
+ // 默认按内容更新日期（蓝奏/TXT，数据已排好序）；“重制 EPUB”按最近重制日期
+ if(flt==='new')view.sort(function(a,b){return a.bu<b.bu?1:a.bu>b.bu?-1:a.i-b.i});
  if(qa)view.sort(function(a,b){return(b.n===qa)-(a.n===qa)});   // aid 精确匹配置顶
  $('cnt').textContent=view.length+' / '+items.length;
  list.textContent='';shown=0;
@@ -198,7 +200,7 @@ function more(){
  var end=Math.min(shown+CH,view.length),h='';
  for(var k=shown;k<end;k++){var it=view[k],sa=[it.a,it.au].filter(Boolean).map(esc).join(' · ');
   h+='<li data-i="'+it.i+'"><div class="m">'+(qa&&it.n===qa?'<i class="p k">aid '+it.n+'</i> ':'')+'<b>'+esc(it.t)+'</b>'+(it.a?'<small>'+esc(it.a)+'</small>':'')+'</div>'
-   +'<div class="au">'+esc(it.au||'')+'</div><div class="u">'+esc(it.u||'')+'</div><div class="sb">'+sa+'</div>'
+   +'<div class="au">'+esc(it.au||'')+'</div><div class="u">'+esc((flt==='new'&&it.bu)||it.u||'')+'</div><div class="sb">'+sa+'</div>'
    +'<div class="b">'+btns(it)+'</div></li>';
  }
  list.insertAdjacentHTML('beforeend',h);shown=end;

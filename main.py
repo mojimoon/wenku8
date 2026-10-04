@@ -274,11 +274,10 @@ def create_data():
                 item['vs'] = vs
         if aid in built and not item['l']:   # 重制版仅用于没有蓝奏 EPUB 源的条目
             item['b'] = 1
-            item['u'] = max([item['u']] + [v['u'] for v in built[aid]])   # 更新日期取三个来源中最晚的
+            item['bu'] = max(v['u'] for v in built[aid])   # 最近重制日期：仅“重制 EPUB”标签页用于排序与显示
         elif aid in blocked and not item['l']:   # wenku8 版权下架，无法重制
             item['k'] = 1
         items.append({k: v for k, v in item.items() if v != ''})
-    items.sort(key=lambda it: it.get('u', ''), reverse=True)
     only_built = {it['n']: built[it['n']] for it in items if it.get('b')}
     lz = 'https://' + read_dl()[0].rstrip('/') + '/'
     return {'items': items, 'built': only_built, 'lz': lz, 'gh': GH_PROXY}

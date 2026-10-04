@@ -132,7 +132,7 @@ def refresh(fetcher: Fetcher, pages: int = 3) -> dict:
     for k, page in cat['pages'].items():
         if k.isdigit() and int(k) > pages:
             cat['pages'][k] = [it for it in page if it['aid'] not in fresh]
-    present = {it['aid'] for page in cat['pages'].values() for it in page}
+    present = {it['aid'] for k, page in cat['pages'].items() if k != 'extra' for it in page}
     extra = {it['aid']: it for it in cat['pages'].get('extra', [])}
     extra.update({aid: it for aid, it in old.items() if aid not in present})
     cat['pages']['extra'] = [it for aid, it in extra.items() if aid not in present]

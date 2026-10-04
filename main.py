@@ -83,14 +83,7 @@ def get_latest(url: str):
     lines = txt.split('\n')
     
     txt = '\n'.join(lines)
-    # if the content has not changed, exit
-    if os.path.exists(DL_FILE):
-        with open(DL_FILE, 'r', encoding='utf-8') as f:
-            old_txt = f.read()
-        if old_txt == txt:
-            print('[INFO] Exiting, no update found.')
-            sys.exit(0)
-
+    # 不能因下载列表未变就退出：同一次运行还要保存新帖子、刷新目录并合并
     with open(DL_FILE, 'w', encoding='utf-8') as f:
         f.write(txt)
 
@@ -185,7 +178,7 @@ def scrape():
             page += 1
             time.sleep(random.uniform(1, 3))
     finally:
-        # get_latest 中 sys.exit(0) 或异常退出时也要释放 Steel 会话
+        # 异常退出时也要释放 Steel 会话
         close_fetcher()  # 释放 playwright / Steel 会话
     print(f'[INFO] new posts: {len(all_entries)}')
 

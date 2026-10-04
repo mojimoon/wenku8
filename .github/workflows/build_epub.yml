@@ -1,6 +1,7 @@
 name: Build EPUB
 
-# 为「仅 TXT 源」的小说从 wenku8 重新抓取并生成分卷 EPUB，上传到 Release（epub-NN）。
+# 每次运行：抓取论坛新帖 / 蓝奏下载列表、刷新 wenku8 目录并合并数据（原 scrape.yml），
+# 再为「仅 TXT 源」的小说从 wenku8 重新抓取并生成分卷 EPUB，上传到 Release（epub-NN），最后触发 Pages 部署。
 # 状态记录在 out/epub_index.json：仅当 TXT 源有更新时才会重新生成。
 # 为降低被识别为爬虫的风险，每天分 6 次短时运行（起始时间随机推迟 0~20 分钟），
 # 每次累计约 40 分钟后完成当前这本书就结束，剩余的由下次运行继续。
@@ -57,6 +58,12 @@ jobs:
       - name: Setup cookie
         run: echo "${{ secrets.WENKU_COOKIES }}" > COOKIE
 
+      # 抓取失败（如 Cloudflare 拦截）不影响后面的生成，沿用仓库中现有的数据
+      - name: Scrape posts, refresh catalog, merge
+        if: github.event_name != 'push' && inputs.aid == ''
+        continue-on-error: true
+        run: python main.py curl_cffi
+
       # 先只抓详情页，把新出现的目标中版权下架的小说标记出来（已检查过的记在 out/epub_checked.txt）
       - name: Check copyright-removed books
         if: github.event_name != 'push'
@@ -78,9 +85,9 @@ jobs:
         run: |
           git config user.name "mojimoon"
           git config user.email "109803649+mojimoon@users.noreply.github.com"
-          git add out/epub_index.json; [ -f out/epub_checked.txt ] && git add out/epub_checked.txt
+          git add out/ docs/
           git diff --staged --quiet && exit 0
-          git commit -m "chore: update epub index on $(date +'%Y-%m-%d %H:%M:%S')"
+          git commit -m "chore: auto update on $(date +'%Y-%m-%d %H:%M:%S')"
           git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}"
           # GITHUB_TOKEN 的 push 不会触发其他工作流，这里显式触发 Pages 部署（只重新生成页面，不爬取）
           [ "${GITHUB_REF_NAME}" = "main" ] && gh workflow run deploy.yml --ref main || true

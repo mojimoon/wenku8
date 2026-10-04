@@ -4,7 +4,7 @@ An automated crawler and static site generator for light novel ebooks from [轻�
 
 ---
 
-[![Deploy](https://github.com/mojimoon/wenku8/actions/workflows/deploy.yml/badge.svg)](https://github.com/mojimoon/wenku8/actions/workflows/deploy.yml) [![Scrape and Update](https://github.com/mojimoon/wenku8/actions/workflows/scrape.yml/badge.svg)](https://github.com/mojimoon/wenku8/actions/workflows/scrape.yml) [![Build EPUB](https://github.com/mojimoon/wenku8/actions/workflows/build_epub.yml/badge.svg)](https://github.com/mojimoon/wenku8/actions/workflows/build_epub.yml)
+[![Deploy](https://github.com/mojimoon/wenku8/actions/workflows/deploy.yml/badge.svg)](https://github.com/mojimoon/wenku8/actions/workflows/deploy.yml) [![Build EPUB](https://github.com/mojimoon/wenku8/actions/workflows/build_epub.yml/badge.svg)](https://github.com/mojimoon/wenku8/actions/workflows/build_epub.yml)
 
 自动化从 [轻小说文库](https://www.wenku8.net) 获取 EPUB 格式电子书，并将结果整合为单页网页 [wenku.mojimoon.top](https://wenku.mojimoon.top)：
 
@@ -92,7 +92,7 @@ GitHub Actions 中通过 Secrets 提供：`WENKU_COOKIES`（Cookie）、`STEEL_A
     - 输出：`docs/index.html`、`docs/epub.html`（跳转页）
     - 数据来源：`out/merged.csv`、`out/epub_index.json`（已生成的重制版）
 
-`scrape.yml` 每天自动运行 `main.py`，将 `out/`、`docs/` 提交到 `main` 并部署到 GitHub Pages；`deploy.yml` 在手动推送到 `main`、或重制版索引更新后（由 `build_epub.yml` / `build_request.yml` 触发）用现有 `out/` 数据重新生成页面并部署，不运行爬虫。
+`build_epub.yml` 每 4 小时运行一次：先运行 `main.py`（抓取新帖与下载列表、刷新目录、合并），再批量生成重制版 EPUB，将 `out/`、`docs/` 提交到 `main` 并触发部署；`deploy.yml` 在手动推送到 `main`、或重制版索引更新后（由 `build_epub.yml` / `build_request.yml` 触发）用现有 `out/` 数据重新生成页面并部署，不运行爬虫。
 
 ### 条目合并（`merge.py`、`utils/names.py`、`utils/catalog.py`）
 

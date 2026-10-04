@@ -13,7 +13,7 @@ permissions:
   pages: write
   id-token: write
 
-# 与 scrape.yml 共用 pages 并发组，避免两个部署互相覆盖
+# pages 并发组：避免两个部署互相覆盖
 concurrency:
   group: pages
   cancel-in-progress: false

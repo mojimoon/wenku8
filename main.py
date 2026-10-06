@@ -51,7 +51,7 @@ def build_url_with_params(base_url: str, params: dict):
 # ========== Scraping ==========
 last_page = 1
 def fetch_post(post_link: str) -> str:
-    """论坛帖子页：Cloudflare 会拦截 GitHub Actions IP 的所有浏览器指纹，失败时经 r.jina.ai 读取（仅这一个请求）。
+    """论坛帖子页有单独的 Cloudflare 规则（见 utils/fetcher.py 的 CFFI_UA），规则再变化导致失败时经 r.jina.ai 读取（仅这一个请求）。
     不复用 _fetcher：它失败时会升级到 playwright/steel，影响后续页面的抓取。"""
     fetcher = Fetcher(_scraper if _scraper in LEVELS else 'curl_cffi')
     try:

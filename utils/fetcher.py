@@ -49,7 +49,7 @@ class LoginExpired(RuntimeError):
     pass
 
 
-IMPERSONATE = ('chrome', 'edge', 'safari', 'firefox')
+CFFI_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
 
 class FetchError(RuntimeError):
     pass
@@ -70,7 +70,6 @@ class Fetcher:
         if scraper != 'auto' and scraper not in LEVELS:
             raise ValueError(f'未知爬虫方式: {scraper}（可选: auto, {", ".join(LEVELS)}）')
         self.cookies = read_cookie()
-        self._imp = 0
         self.fallback = (scraper == 'auto') if fallback is None else fallback
         self.level = 0 if scraper == 'auto' else LEVELS.index(scraper)
         self.delay = delay
@@ -93,20 +92,13 @@ class Fetcher:
 
     def _get_requests(self, url: str, encoding: str, impersonate: bool) -> str:
         if impersonate:
-            # curl_cffi 模拟浏览器 TLS 指纹，可通过数据中心 IP（如 GitHub Actions）上的 Cloudflare 检测。
-            # Cloudflare 有时只拦截部分指纹（如论坛帖页拦 chrome、放行 edge）：403 时换下一个指纹，成功的沿用
-            for _ in IMPERSONATE:
-                if self._cffi is None:
-                    from curl_cffi import requests as cffi
-                    self._cffi = cffi.Session(impersonate=IMPERSONATE[self._imp], headers={'Referer': DOMAIN + '/'})
-                    self._cffi.cookies.update(self.cookies)
-                resp = self._cffi.get(url, timeout=20, allow_redirects=True)
-                if resp.status_code != 403:
-                    break
-                self._imp = (self._imp + 1) % len(IMPERSONATE)
-                self._cffi.close()
-                self._cffi = None
-                print(f'[WARN] curl_cffi 403，改用指纹 {IMPERSONATE[self._imp]}')
+            # curl_cffi 模拟 Chrome 的 TLS 指纹，可通过数据中心 IP（如 GitHub Actions）上的 Cloudflare 检测。
+            # UA 固定为 Windows 版 Chrome：论坛帖子页（reviewshow.php）会对 Mac UA（curl_cffi 默认）发起验证
+            if self._cffi is None:
+                from curl_cffi import requests as cffi
+                self._cffi = cffi.Session(impersonate='chrome', headers={'Referer': DOMAIN + '/', 'User-Agent': CFFI_UA})
+                self._cffi.cookies.update(self.cookies)
+            resp = self._cffi.get(url, timeout=20, allow_redirects=True)
         else:
             resp = self.session.get(url, timeout=15, allow_redirects=True)
         if '/login.php' in resp.url:

@@ -9,7 +9,8 @@
 索引条目（每个 aid 一行）:
     {txt, title, author, built_at, src_update, tag, total, volumes: [{index, title, file, size, ...}],
      variants: {"orig"|"1600"|"1400"|"800"|"600"|"noimg": {txt, tag, total, built_at, volumes}}}   # 其他版本（按需生成）
-Release 附件名为 {aid}-{file}：默认 1000px 在 epub-NN（aid//200），其他版本在 epub-var-NN。
+每本书一个 Release（book-{aid}，不受单个 Release 1000 个附件的限制），附件名为 {aid}-{file}，各版本放在一起。
+早期生成的条目在 epub-00 / epub-var-NN，索引里记录了各自的 tag，继续有效。
 
 用法:
     python build_batch.py --max-novels 50 --time-budget 300   # 在 Actions 中
@@ -35,12 +36,11 @@ MERGED_CSV = os.path.join('out', 'merged.csv')
 INDEX_FILE = os.path.join('out', 'epub_index.json')
 CHECKED_FILE = os.path.join('out', 'epub_checked.txt')   # 已检查、未下架的 aid（每行一个），避免重复检查
 REPO = os.environ.get('GITHUB_REPOSITORY', 'mojimoon/wenku8')
-TAG_SIZE = 200   # 每个 Release 容纳的 aid 范围（Release 最多 1000 个附件）
 MAX_FAILS = 3
 
 
-def release_tag(aid: int, variant: str = '') -> str:
-    return f'epub-{"var-" if variant else ""}{aid // TAG_SIZE:02d}'
+def release_tag(aid: int) -> str:
+    return f'book-{aid}'
 
 
 def txt_version(url: str) -> str:
@@ -93,16 +93,16 @@ def pick_targets(index: dict) -> list[tuple[int, str]]:
 
 # ─── Release ──────────────────────────────────────────
 
-def ensure_release(tag: str):
+def ensure_release(tag: str, title: str = ''):
     if subprocess.run(['gh', 'release', 'view', tag], capture_output=True).returncode != 0:
-        subprocess.run(['gh', 'release', 'create', tag, '--title', tag, '--notes', 'EPUB cache (auto-generated)'],
-                       check=True)
+        subprocess.run(['gh', 'release', 'create', tag, '--title', title or tag, '--notes', 'EPUB cache (auto-generated)',
+                        '--latest=false'], check=True)
 
 
 def upload(aid: int, info: dict, variant: str = '') -> str:
     """上传 info['volumes'] 的分卷文件，附件名 {aid}-{file}，显示名带书名与 aid。返回 Release tag。"""
-    tag = release_tag(aid, variant)
-    ensure_release(tag)
+    tag = release_tag(aid)
+    ensure_release(tag, f'{info["title"]} (aid {aid})')
     src = os.path.join(EPUB_OUT_DIR, str(aid))
     files = []
     for v in info['volumes']:
@@ -125,15 +125,15 @@ def update_notes(tag: str, index: dict):
                 rows.append(f'| [{aid}](https://www.wenku8.net/book/{aid}.htm) | {e.get("title", "")} | '
                             f'{e.get("author", "")} | {variant} | {len(s["volumes"])}/{s.get("total", len(s["volumes"]))} '
                             f'| {s.get("built_at", "")[:10]} |')
-    kind = '其他分辨率 / 无插图（按需生成）' if '-var-' in tag else '插图长边 1000px（默认）'
-    notes = '\n'.join([f'wenku8 重制版分卷 EPUB，{kind}。附件名为 `{{aid}}-[分辨率-]v{{卷序号}}.epub`。', '',
+    notes = '\n'.join(['wenku8 重制版分卷 EPUB（1000 为默认版本）。附件名为 `{aid}-[版本-]v{卷序号}.epub`。', '',
                        '| aid | 书名 | 作者 | 分辨率 | 卷数 | 生成时间 |', '|---|---|---|---|---|---|', *rows])
     subprocess.run(['gh', 'release', 'edit', tag, '--notes', notes[:120000]], check=True)
 
 
 def merge_slot(slot: dict, info: dict, version: str, tag: str) -> dict:
     """把新生成的卷并入缓存条目（同一 TXT 版本下按卷累积，版本变化则重来）。"""
-    have = {v['index']: v for v in slot.get('volumes', [])} if slot.get('txt') == version else {}
+    same = slot.get('txt') == version and slot.get('tag') == tag   # 旧 Release 里的卷不与新 Release 混用
+    have = {v['index']: v for v in slot.get('volumes', [])} if same else {}
     for v in info['volumes']:
         have[v['index']] = {k: v[k] for k in ('index', 'title', 'file', 'size', 'chapters', 'images')}
     return {'txt': version, 'tag': tag, 'total': info['total_volumes'], 'built_at': info['built_at'],
@@ -234,7 +234,7 @@ def main():
             entry = index.get(str(aid), {})
             # 只生成了部分卷（按需请求）且 TXT 未变：只补缺失的卷
             missing = None
-            if entry.get('txt') == ver and entry.get('volumes') and entry.get('total'):
+            if entry.get('txt') == ver and entry.get('volumes') and entry.get('total') and entry.get('tag') == release_tag(aid):
                 missing = set(range(1, entry['total'] + 1)) - {v['index'] for v in entry['volumes']} or None
             try:
                 info = build_novel(fetcher, aid, split=True, only_volumes=missing)

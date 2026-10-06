@@ -10,7 +10,7 @@ import os
 import pandas as pd
 
 from merge import merge, read_dl
-from utils import LEVELS, Fetcher, catalog
+from utils import LEVELS, Fetcher, FetchError, catalog
 
 BASE_URL = 'https://www.wenku8.net/modules/article/reviewslist.php'
 params = { 'keyword': '8691', 'charset': 'utf-8', 'page': 1 }
@@ -50,21 +50,32 @@ def build_url_with_params(base_url: str, params: dict):
 
 # ========== Scraping ==========
 last_page = 1
+def fetch_post(post_link: str) -> str:
+    """论坛帖子页：Cloudflare 会拦截 GitHub Actions IP 的所有浏览器指纹，失败时经 r.jina.ai 读取（仅这一个请求）。
+    不复用 _fetcher：它失败时会升级到 playwright/steel，影响后续页面的抓取。"""
+    fetcher = Fetcher(_scraper if _scraper in LEVELS else 'curl_cffi')
+    try:
+        return fetcher.get(post_link)
+    except FetchError as e:
+        print(f'[WARN] 帖子页抓取失败（{e}），改用 r.jina.ai')
+        import requests
+        resp = requests.get('https://r.jina.ai/' + post_link, timeout=60)
+        resp.raise_for_status()
+        return resp.text
+    finally:
+        fetcher.close()
+
+
 def get_latest_url(post_link: str):
-    txt = scrape_page(post_link)
+    """帖子中的下载列表链接。HTML: <a href="https://paste.gentoo.zip">https://paste.gentoo.zip</a>/EsX5Kx8V；
+    jina 的 Markdown: [https://paste.gentoo.zip](https://paste.gentoo.zip/)/4btZnXKF；或 https://0x0.st/8QWZ.txt"""
+    txt = fetch_post(post_link)
+    text = re.sub(r'<[^>]+>', '', re.sub(r'\]\([^)]*\)', '', txt)).replace('[', '')   # 去掉标签与 Markdown 链接目标
+    match = re.search(r'https://paste\.[\w.]+/\w+', text) or re.search(r'https://[^\s"]+?\.txt\b', text)
+    if not match:
+        raise ValueError("[ERROR] Failed to find the latest URL")
+    return match.group(0)
 
-    # <a href="https://paste.gentoo.zip" target="_blank">https://paste.gentoo.zip</a>/EsX5Kx8V
-    match = re.search(r'<a href="([^"]+)" target="_blank">([^<]+)</a>(/[^<]+)', txt)
-    link = match.group(1) + match.group(3) if match else None
-    if link is None:
-        # <a href="https://0x0.st/8QWZ.txt" target="_blank">https://0x0.st/8QWZ.txt</a><br>
-        match = re.search(r'https:\/\/[^"]+?\.txt(?=")', txt)
-        if match:
-            link = match.group(0)
-        else:
-            raise ValueError("[ERROR] Failed to find the latest URL")
-
-    return link
 
 def get_latest(url: str):
     # txt = scrape_page(url)

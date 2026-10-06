@@ -1,7 +1,7 @@
 name: Build EPUB
 
 # 每次运行：抓取论坛新帖 / 蓝奏下载列表、刷新 wenku8 目录并合并数据（原 scrape.yml），
-# 再为「仅 TXT 源」的小说从 wenku8 重新抓取并生成分卷 EPUB，上传到 Release（epub-NN），最后触发 Pages 部署。
+# 再为「仅 TXT 源」的小说从 wenku8 重新抓取并生成分卷 EPUB，上传到 Release（每本书一个 book-{aid}），最后触发 Pages 部署。
 # 状态记录在 out/epub_index.json：仅当 TXT 源有更新时才会重新生成。
 # 为降低被识别为爬虫的风险，每天分 6 次短时运行（起始时间随机推迟 0~20 分钟），
 # 每次累计约 40 分钟后完成当前这本书就结束，剩余的由下次运行继续。

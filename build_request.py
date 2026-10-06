@@ -8,8 +8,8 @@ Issue 正文为 "key: value" 行（由页面预填，也可手写）:
     images: yes             # yes / no
 
 Issue 正文是不可信内容：通过 GitHub API 读取，仅做严格解析，不进入 shell。
-所有版本都按卷缓存并记入 out/epub_index.json：1000 为页面上的默认版本（Release epub-NN，与批量生成共用），
-其他（原图/1600/1400/800/600/无图）在 epub-var-NN；再次请求同一版本、同样的卷时直接回复。
+所有版本都按卷缓存并记入 out/epub_index.json：1000 为页面上的默认版本（与批量生成共用），
+其他为原图/1600/1400/800/600/无图；每本书一个 Release（book-{aid}）。再次请求同一版本、同样的卷时直接回复。
 
 防滥用：
   - 每个 GitHub 用户 1 小时内最多 5 条、24 小时内最多 10 条请求（按 Issue 创建时间计，含缓存命中与被拒绝的；
@@ -27,7 +27,7 @@ import re
 import subprocess
 import time
 
-from build_batch import (load_index, merge_slot, name_files, record_blocked, record_default, save_index,
+from build_batch import (load_index, merge_slot, release_tag, name_files, record_blocked, record_default, save_index,
                          txt_only_targets, update_notes, upload)
 from gen_epub import MAX_SIDE, CopyrightBlocked, build_novel
 from utils import Fetcher
@@ -171,7 +171,8 @@ def process(req: dict, allow_fresh: bool) -> tuple[str, bool]:
         return comment(title, aid, slot['tag'], [have[i] for i in sorted(wanted)], '该版本此前已生成，直接提供下载。'), False
     if not allow_fresh:
         raise Deferred()
-    todo = wanted - have.keys() if wanted is not None else None
+    # 只补缺失的卷；旧 Release（epub-00 等）中的卷不与新 Release 混用，需要全部重新生成
+    todo = (wanted - have.keys() if slot.get('tag') == release_tag(aid) else wanted) if wanted is not None else None
 
     fetcher = Fetcher('curl_cffi', fallback=True)
     try:

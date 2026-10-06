@@ -41,6 +41,8 @@ jobs:
     timeout-minutes: 120
     env:
       GH_TOKEN: ${{ github.token }}
+      # 对 EPUB 存放仓库（mojimoon/wenku8-epub）有写权限的令牌；未设置时发布到本仓库
+      EPUB_TOKEN: ${{ secrets.EPUB_REPO_TOKEN }}
     steps:
       - name: Random delay
         if: github.event_name == 'schedule'

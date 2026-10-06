@@ -27,7 +27,7 @@ import re
 import subprocess
 import time
 
-from build_batch import (load_index, merge_slot, release_tag, name_files, record_blocked, record_default, save_index,
+from build_batch import (in_store, load_index, merge_slot, name_files, record_blocked, record_default, save_index,
                          txt_only_targets, update_notes, upload)
 from gen_epub import MAX_SIDE, CopyrightBlocked, build_novel
 from utils import Fetcher
@@ -71,18 +71,19 @@ def variant_of(req: dict) -> str:
     return '' if req['max_side'] == MAX_SIDE else ('orig' if req['max_side'] == 0 else str(req['max_side']))
 
 
-def link(tag: str, name: str) -> str:
-    return f'{GH_PROXY}https://github.com/{REPO}/releases/download/{tag}/{name}'
+def link(repo: str, tag: str, name: str) -> str:
+    return f'{GH_PROXY}https://github.com/{repo}/releases/download/{tag}/{name}'
 
 
 def fmt_size(n: int) -> str:
     return f'{n / 1048576:.1f} MB' if n >= 1048576 else f'{max(1, round(n / 1024))} KB'
 
 
-def comment(title: str, aid: int, tag: str, vols: list[dict], note: str = '') -> str:
+def comment(title: str, aid: int, slot: dict, vols: list[dict], note: str = '') -> str:
     lines = [f'**{title}**（aid {aid}）已生成：', '']
     for v in vols:
-        lines.append(f'- [{v["title"]}]({link(tag, f"{aid}-{v["file"]}")}) ({fmt_size(v["size"])})')
+        url = link(slot.get('repo', REPO), slot['tag'], f'{aid}-{v["file"]}')
+        lines.append(f'- [{v["title"]}]({url}) ({fmt_size(v["size"])})')
     lines += ['', note, '', '链接经 gh-proxy.org 加速；本 Issue 将自动关闭。']
     return '\n'.join(lines)
 
@@ -168,11 +169,11 @@ def process(req: dict, allow_fresh: bool) -> tuple[str, bool]:
     total = slot.get('total', len(have)) if have else 0
     wanted = req['volumes'] or (set(range(1, total + 1)) if total else None)
     if wanted is not None and wanted <= have.keys():
-        return comment(title, aid, slot['tag'], [have[i] for i in sorted(wanted)], '该版本此前已生成，直接提供下载。'), False
+        return comment(title, aid, slot, [have[i] for i in sorted(wanted)], '该版本此前已生成，直接提供下载。'), False
     if not allow_fresh:
         raise Deferred()
     # 只补缺失的卷；旧 Release（epub-00 等）中的卷不与新 Release 混用，需要全部重新生成
-    todo = (wanted - have.keys() if slot.get('tag') == release_tag(aid) else wanted) if wanted is not None else None
+    todo = (wanted - have.keys() if in_store(slot, aid) else wanted) if wanted is not None else None
 
     fetcher = Fetcher('curl_cffi', fallback=True)
     try:
@@ -199,7 +200,7 @@ def process(req: dict, allow_fresh: bool) -> tuple[str, bool]:
     update_notes(tag, index)
     vols = {v['index']: v for v in slot['volumes']}
     show = sorted(wanted) if wanted is not None else sorted(vols)
-    return comment(info['title'], aid, tag, [vols[i] for i in show if i in vols], note), True
+    return comment(info['title'], aid, slot, [vols[i] for i in show if i in vols], note), True
 
 
 def main():

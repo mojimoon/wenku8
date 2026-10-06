@@ -227,7 +227,7 @@ $('theme').addEventListener('click',function(){
 // ── 动作 ──
 var proxy=function(u){return GH+encodeURI(u)};
 var txtUrl=function(it){return proxy('https://raw.githubusercontent.com/'+it.x)};
-var volUrl=function(aid,tag,f){return proxy('https://github.com/'+REPO+'/releases/download/'+tag+'/'+aid+'-'+f)};
+var volUrl=function(aid,b,f){return proxy('https://github.com/'+b.r+'/releases/download/'+b.t+'/'+aid+'-'+f)};
 var fmt=function(b){return b>=1048576?(b/1048576).toFixed(1)+' MB':Math.max(1,Math.round(b/1024))+' KB'};
 function go(u){var a=document.createElement('a');a.href=u;a.rel='noopener';document.body.appendChild(a);a.click();a.remove()}
 function goAll(urls){urls.forEach(function(u,i){setTimeout(function(){go(u)},i*700)})}
@@ -268,7 +268,7 @@ function openDlg(it){
  bs.forEach(function(b,bi){
   h+='<div class="sec"><details class="vg"'+(bi?'':' open')+'><summary><span class="rl"><i class="p n">重制</i>'+VN[b.d]+'<small>'+[b.u,b.v.length+(b.n?' / '+b.n:'')+' 卷'].filter(Boolean).join(' · ')+'</small></span>'
    +(b.v.length>1?'<button class="btn s" data-a="all" data-k="'+bi+'">依次下载全部</button>':'')+'</summary>';
-  b.v.forEach(function(v,k){h+='<div class="r"><div class="rl"><span class="vi" title="卷序号（目录中的顺序）">'+(+(v[0].match(/v(\d+)\.epub$/)||[0,k+1])[1])+'</span>'+esc(v[1])+'<small>'+fmt(v[2])+'</small></div><div class="rr"><a class="btn s" href="'+esc(volUrl(it.n,b.t,v[0]))+'">下载</a></div></div>'});
+  b.v.forEach(function(v,k){h+='<div class="r"><div class="rl"><span class="vi" title="卷序号（目录中的顺序）">'+(+(v[0].match(/v(\d+)\.epub$/)||[0,k+1])[1])+'</span>'+esc(v[1])+'<small>'+fmt(v[2])+'</small></div><div class="rr"><a class="btn s" href="'+esc(volUrl(it.n,b,v[0]))+'">下载</a></div></div>'});
   h+=(b.v.length>1?'<div class="note">“依次下载全部”会逐卷触发下载，如被浏览器拦截请允许“多个文件下载”。</div>':'')
    +(b.n?'<div class="note">已生成 '+b.v.length+' / '+b.n+' 卷，其余卷可在下方请求生成。</div>':'')+'</details></div>';
  });
@@ -298,7 +298,7 @@ $('db').addEventListener('click',function(e){
  if(t.closest('summary'))e.preventDefault();   // 标题行里的按钮不触发折叠
  var a=t.dataset.a,b=(built[cur.n]||[])[t.dataset.k||0];
  if(a==='lz')openLz(cur);
- else if(a==='all')goAll(b.v.map(function(v){return volUrl(cur.n,b.t,v[0])}));
+ else if(a==='all')goAll(b.v.map(function(v){return volUrl(cur.n,b,v[0])}));
  else if(a==='req')window.open(issueUrl(cur),'_blank','noopener');
 });
 

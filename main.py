@@ -263,6 +263,7 @@ def create_data():
                 for name, slot in sorted(slots, key=lambda x: VARIANT_ORDER.index(x[0]) if x[0] in VARIANT_ORDER else 99):
                     if slot.get('volumes') and slot.get('tag'):
                         ver = {'d': name, 't': slot['tag'], 'u': (slot.get('built_at') or '')[:10],
+                               'r': slot.get('repo', 'mojimoon/wenku8'),
                                'v': [[v['file'], v['title'], v['size']] for v in slot['volumes']]}
                         if len(slot['volumes']) < slot.get('total', 0):
                             ver['n'] = slot['total']   # 只生成了部分卷

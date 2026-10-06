@@ -36,6 +36,9 @@ MERGED_CSV = os.path.join('out', 'merged.csv')
 INDEX_FILE = os.path.join('out', 'epub_index.json')
 CHECKED_FILE = os.path.join('out', 'epub_checked.txt')   # 已检查、未下架的 aid（每行一个），避免重复检查
 REPO = os.environ.get('GITHUB_REPOSITORY', 'mojimoon/wenku8')
+# EPUB 存放仓库（Release 不出现在本仓库关注者的动态里）。需要对它有写权限的令牌 EPUB_TOKEN；未设置时仍发布到本仓库
+EPUB_REPO = os.environ.get('EPUB_REPO', 'mojimoon/wenku8-epub')
+STORE = EPUB_REPO if os.environ.get('EPUB_TOKEN') else REPO
 MAX_FAILS = 3
 
 
@@ -93,10 +96,21 @@ def pick_targets(index: dict) -> list[tuple[int, str]]:
 
 # ─── Release ──────────────────────────────────────────
 
+def gh_store(*args, check: bool = True, **kw):
+    """在存放仓库上运行 gh（用 EPUB_TOKEN；本仓库的 Issue 等操作仍用 Actions 自带令牌）。"""
+    env = {**os.environ, 'GH_TOKEN': os.environ['EPUB_TOKEN']} if STORE != REPO else None
+    return subprocess.run(['gh', *args, '--repo', STORE], env=env, check=check, **kw)
+
+
+def in_store(slot: dict, aid: int) -> bool:
+    """该版本是否在当前的存放位置（旧位置的卷不与新位置混用）。"""
+    return slot.get('tag') == release_tag(aid) and slot.get('repo', REPO) == STORE
+
+
 def ensure_release(tag: str, title: str = ''):
-    if subprocess.run(['gh', 'release', 'view', tag], capture_output=True).returncode != 0:
-        subprocess.run(['gh', 'release', 'create', tag, '--title', title or tag, '--notes', 'EPUB cache (auto-generated)',
-                        '--latest=false'], check=True)
+    if gh_store('release', 'view', tag, check=False, capture_output=True).returncode != 0:
+        gh_store('release', 'create', tag, '--title', title or tag, '--notes', 'EPUB cache (auto-generated)',
+                 '--latest=false')
 
 
 def upload(aid: int, info: dict, variant: str = '') -> str:
@@ -110,7 +124,7 @@ def upload(aid: int, info: dict, variant: str = '') -> str:
         shutil.copyfile(os.path.join(src, v['local']), dst)
         label = f'{info["title"]} {v["title"]}{f" [{variant}]" if variant else ""} (aid {aid})'.replace('#', '＃')
         files.append(f'{dst}#{label}')
-    subprocess.run(['gh', 'release', 'upload', tag, *files, '--clobber'], check=True)
+    gh_store('release', 'upload', tag, *files, '--clobber')
     return tag
 
 
@@ -121,22 +135,22 @@ def update_notes(tag: str, index: dict):
         e = index[aid]
         slots = [('1000', e)] + list(e.get('variants', {}).items())
         for variant, s in slots:
-            if s.get('tag') == tag and s.get('volumes'):
+            if s.get('tag') == tag and s.get('repo', REPO) == STORE and s.get('volumes'):
                 rows.append(f'| [{aid}](https://www.wenku8.net/book/{aid}.htm) | {e.get("title", "")} | '
                             f'{e.get("author", "")} | {variant} | {len(s["volumes"])}/{s.get("total", len(s["volumes"]))} '
                             f'| {s.get("built_at", "")[:10]} |')
     notes = '\n'.join(['wenku8 重制版分卷 EPUB（1000 为默认版本）。附件名为 `{aid}-[版本-]v{卷序号}.epub`。', '',
                        '| aid | 书名 | 作者 | 分辨率 | 卷数 | 生成时间 |', '|---|---|---|---|---|---|', *rows])
-    subprocess.run(['gh', 'release', 'edit', tag, '--notes', notes[:120000]], check=True)
+    gh_store('release', 'edit', tag, '--notes', notes[:120000])
 
 
 def merge_slot(slot: dict, info: dict, version: str, tag: str) -> dict:
     """把新生成的卷并入缓存条目（同一 TXT 版本下按卷累积，版本变化则重来）。"""
-    same = slot.get('txt') == version and slot.get('tag') == tag   # 旧 Release 里的卷不与新 Release 混用
+    same = slot.get('txt') == version and slot.get('tag') == tag and slot.get('repo', REPO) == STORE   # 不与旧位置混用
     have = {v['index']: v for v in slot.get('volumes', [])} if same else {}
     for v in info['volumes']:
         have[v['index']] = {k: v[k] for k in ('index', 'title', 'file', 'size', 'chapters', 'images')}
-    return {'txt': version, 'tag': tag, 'total': info['total_volumes'], 'built_at': info['built_at'],
+    return {'txt': version, 'tag': tag, 'repo': STORE, 'total': info['total_volumes'], 'built_at': info['built_at'],
             'volumes': [have[k] for k in sorted(have)]}
 
 
@@ -234,7 +248,7 @@ def main():
             entry = index.get(str(aid), {})
             # 只生成了部分卷（按需请求）且 TXT 未变：只补缺失的卷
             missing = None
-            if entry.get('txt') == ver and entry.get('volumes') and entry.get('total') and entry.get('tag') == release_tag(aid):
+            if entry.get('txt') == ver and entry.get('volumes') and entry.get('total') and in_store(entry, aid):
                 missing = set(range(1, entry['total'] + 1)) - {v['index'] for v in entry['volumes']} or None
             try:
                 info = build_novel(fetcher, aid, split=True, only_volumes=missing)

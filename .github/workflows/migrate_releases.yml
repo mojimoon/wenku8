@@ -47,5 +47,8 @@ jobs:
           git add out/epub_index.json
           git diff --staged --quiet && exit 0
           git commit -m "chore: migrate EPUB releases to wenku8-epub"
-          git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}"
+          for i in 1 2 3; do   # GitHub 偶发 500：重试推送
+            git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && break
+            sleep 30
+          done
           gh workflow run deploy.yml --ref "${GITHUB_REF_NAME}"

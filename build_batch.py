@@ -99,7 +99,13 @@ def pick_targets(index: dict) -> list[tuple[int, str]]:
 def gh_store(*args, check: bool = True, **kw):
     """在存放仓库上运行 gh（用 EPUB_TOKEN；本仓库的 Issue 等操作仍用 Actions 自带令牌）。"""
     env = {**os.environ, 'GH_TOKEN': os.environ['EPUB_TOKEN']} if STORE != REPO else None
-    return subprocess.run(['gh', *args, '--repo', STORE], env=env, check=check, **kw)
+    for attempt in range(3):   # GitHub 偶发 HTTP 500：重试
+        r = subprocess.run(['gh', *args, '--repo', STORE], env=env, **kw)
+        if r.returncode == 0 or not check:
+            return r
+        print(f'[WARN] gh {args[0]} {args[1]} 失败（第 {attempt + 1} 次），稍后重试')
+        time.sleep(20 * (attempt + 1))
+    raise subprocess.CalledProcessError(r.returncode, r.args)
 
 
 def in_store(slot: dict, aid: int) -> bool:

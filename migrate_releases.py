@@ -64,21 +64,13 @@ def migrate(index: dict) -> int:
                 continue
             old = slot['tag']
             print(f'[migrate] aid={aid} {variant or "1000"}: {REPO}@{old} -> {STORE}@{new}（{len(slot["volumes"])} 卷）')
-            ensure_release(new, f'{entry.get("title", aid)} (aid {aid})')
-            src, have = asset_list(REPO, old), asset_list(STORE, new)
-            with tempfile.TemporaryDirectory() as d:
-                files = []
-                for v in slot['volumes']:
-                    name = f'{aid}-{v["file"]}'
-                    if name in have and have[name][1] == src.get(name, (0, -1))[1]:
-                        continue
-                    subprocess.run(['gh', 'release', 'download', old, '--repo', REPO, '-p', name, '-D', d, '--clobber'],
-                                   check=True)
-                    label = asset_label(int(aid), v, entry.get('title', ''), entry.get('author', ''), variant)
-                    files.append(f'{os.path.join(d, name)}#{label}')
-                if files:
-                    gh_store('release', 'upload', new, *files, '--clobber')
-            have = asset_list(STORE, new)
+            try:
+                copy_slot(aid, entry, slot, variant, old, new)
+            except subprocess.CalledProcessError as e:
+                print(f'    [ERROR] {e}')
+                failed += 1
+                continue
+            have, src = asset_list(STORE, new), asset_list(REPO, old)
             bad = [v['file'] for v in slot['volumes']
                    if have.get(f'{aid}-{v["file"]}', (0, -1))[1] != src.get(f'{aid}-{v["file"]}', (0, -2))[1]]
             if bad:
@@ -89,6 +81,24 @@ def migrate(index: dict) -> int:
             save_index(index)
             update_notes(new, index)
     return failed
+
+
+def copy_slot(aid: str, entry: dict, slot: dict, variant: str, old: str, new: str):
+    """下载原附件并上传到存放仓库（已上传且大小一致的跳过）。"""
+    ensure_release(new, f'{entry.get("title", aid)} (aid {aid})')
+    src, have = asset_list(REPO, old), asset_list(STORE, new)
+    with tempfile.TemporaryDirectory() as d:
+        files = []
+        for v in slot['volumes']:
+            name = f'{aid}-{v["file"]}'
+            if name in have and have[name][1] == src.get(name, (0, -1))[1]:
+                continue
+            subprocess.run(['gh', 'release', 'download', old, '--repo', REPO, '-p', name, '-D', d, '--clobber'],
+                           check=True)
+            label = asset_label(int(aid), v, entry.get('title', ''), entry.get('author', ''), variant)
+            files.append(f'{os.path.join(d, name)}#{label}')
+        if files:
+            gh_store('release', 'upload', new, *files, '--clobber')
 
 
 def delete_all(index: dict):

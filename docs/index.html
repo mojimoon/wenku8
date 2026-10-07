@@ -230,7 +230,23 @@ var txtUrl=function(it){return proxy('https://raw.githubusercontent.com/'+it.x)}
 var volUrl=function(aid,b,f){return proxy('https://github.com/'+b.r+'/releases/download/'+b.t+'/'+aid+'-'+f)};
 var fmt=function(b){return b>=1048576?(b/1048576).toFixed(1)+' MB':Math.max(1,Math.round(b/1024))+' KB'};
 function go(u){var a=document.createElement('a');a.href=u;a.rel='noopener';document.body.appendChild(a);a.click();a.remove()}
-function goAll(urls){urls.forEach(function(u,i){setTimeout(function(){go(u)},i*700)})}
+// GitHub 附件名只能是 ASCII：经 gh-proxy（允许跨域）取回后按“[aid-卷序号] 书名 - 卷名 - 作者.epub”保存，失败时直接打开链接
+var vno=function(f,k){return +((f.match(/v(\d+)\.epub$/)||[0,k+1])[1])};
+function volName(it,v,k){
+ var n=('0'+vno(v[0],k)).slice(-2);
+ return ('['+it.n+'-'+n+'] '+[it.t,v[1],it.au].filter(Boolean).join(' - ')).replace(/[\\\/:*?"<>|]/g,'_')+'.epub';
+}
+function save(u,name){
+ return fetch(u).then(function(r){if(!r.ok)throw r.status;return r.blob()}).then(function(bl){
+  var a=document.createElement('a'),o=URL.createObjectURL(bl);a.href=o;a.download=name;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(function(){URL.revokeObjectURL(o)},30000);
+ }).catch(function(){go(u)});
+}
+function saveAll(it,b){
+ var i=0;(function next(){if(i>=b.v.length){toast('全部 '+b.v.length+' 卷已下载');return}
+  var v=b.v[i];toast('正在下载 '+(i+1)+' / '+b.v.length+'：'+v[1]);
+  save(volUrl(it.n,b,v[0]),volName(it,v,i)).then(function(){i++;setTimeout(next,400)})})();
+}
 function openLz(it){
  if(it.p){copy(it.p);toast('密码 '+it.p+' 已复制')}
  window.open(LZ+it.l,'_blank','noopener');
@@ -268,8 +284,8 @@ function openDlg(it){
  bs.forEach(function(b,bi){
   h+='<div class="sec"><details class="vg"'+(bi?'':' open')+'><summary><span class="rl"><i class="p n">重制</i>'+VN[b.d]+'<small>'+[b.u,b.v.length+(b.n?' / '+b.n:'')+' 卷'].filter(Boolean).join(' · ')+'</small></span>'
    +(b.v.length>1?'<button class="btn s" data-a="all" data-k="'+bi+'">依次下载全部</button>':'')+'</summary>';
-  b.v.forEach(function(v,k){h+='<div class="r"><div class="rl"><span class="vi" title="卷序号（目录中的顺序）">'+(+(v[0].match(/v(\d+)\.epub$/)||[0,k+1])[1])+'</span>'+esc(v[1])+'<small>'+fmt(v[2])+'</small></div><div class="rr"><a class="btn s" href="'+esc(volUrl(it.n,b,v[0]))+'">下载</a></div></div>'});
-  h+=(b.v.length>1?'<div class="note">“依次下载全部”会逐卷触发下载，如被浏览器拦截请允许“多个文件下载”。</div>':'')
+  b.v.forEach(function(v,k){h+='<div class="r"><div class="rl"><span class="vi" title="卷序号（目录中的顺序）">'+vno(v[0],k)+'</span>'+esc(v[1])+'<small>'+fmt(v[2])+'</small></div><div class="rr"><a class="btn s" data-a="dl" data-k="'+bi+'" data-j="'+k+'" href="'+esc(volUrl(it.n,b,v[0]))+'">下载</a></div></div>'});
+  h+=(b.v.length>1?'<div class="note">“依次下载全部”会逐卷下载，如被浏览器拦截请允许“多个文件下载”。文件名为“[aid-卷序号] 书名 - 卷名 - 作者.epub”。</div>':'')
    +(b.n?'<div class="note">已生成 '+b.v.length+' / '+b.n+' 卷，其余卷可在下方请求生成。</div>':'')+'</details></div>';
  });
  if(it.x){
@@ -298,7 +314,8 @@ $('db').addEventListener('click',function(e){
  if(t.closest('summary'))e.preventDefault();   // 标题行里的按钮不触发折叠
  var a=t.dataset.a,b=(built[cur.n]||[])[t.dataset.k||0];
  if(a==='lz')openLz(cur);
- else if(a==='all')goAll(b.v.map(function(v){return volUrl(cur.n,b,v[0])}));
+ else if(a==='all')saveAll(cur,b);
+ else if(a==='dl'){e.preventDefault();var v=b.v[t.dataset.j];toast('正在下载：'+v[1]);save(t.href,volName(cur,v,+t.dataset.j))}
  else if(a==='req')window.open(issueUrl(cur),'_blank','noopener');
 });
 

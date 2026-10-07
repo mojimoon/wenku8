@@ -1,0 +1,51 @@
+name: Migrate releases
+
+# 一次性：把本仓库的重制版 EPUB Release 迁到 mojimoon/wenku8-epub，更新索引，核对无误后删除本仓库的所有 Release。
+# 可重复运行（已迁移的跳过）。
+on:
+  workflow_dispatch:
+    inputs:
+      delete:
+        description: '迁移全部成功后删除本仓库的所有 Release'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  actions: write
+
+# 与生成任务共用并发组，避免同时改写索引
+concurrency:
+  group: wenku8-crawl
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      GH_TOKEN: ${{ github.token }}
+      EPUB_TOKEN: ${{ secrets.EPUB_REPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Migrate
+        run: python migrate_releases.py ${{ inputs.delete && '--delete' || '' }}
+
+      - name: Commit index
+        if: always()
+        run: |
+          git config user.name "mojimoon"
+          git config user.email "109803649+mojimoon@users.noreply.github.com"
+          git add out/epub_index.json
+          git diff --staged --quiet && exit 0
+          git commit -m "chore: migrate EPUB releases to wenku8-epub"
+          git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}"
+          gh workflow run deploy.yml --ref "${GITHUB_REF_NAME}"

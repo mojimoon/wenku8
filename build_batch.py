@@ -107,6 +107,12 @@ def in_store(slot: dict, aid: int) -> bool:
     return slot.get('tag') == release_tag(aid) and slot.get('repo', REPO) == STORE
 
 
+def asset_label(aid, v: dict, title: str, author: str, variant: str = '') -> str:
+    """附件显示名（附件文件名只能是 ASCII）：[aid-卷序号] 书名 - 卷名 - 作者 [版本]，与网页下载时的文件名一致。"""
+    name = ' - '.join(x for x in (title, v['title'], author) if x)
+    return f'[{aid}-{v["index"]:02d}] {name}{f" [{variant}]" if variant else ""}'.replace('#', '＃')
+
+
 def ensure_release(tag: str, title: str = ''):
     if gh_store('release', 'view', tag, check=False, capture_output=True).returncode != 0:
         gh_store('release', 'create', tag, '--title', title or tag, '--notes', 'EPUB cache (auto-generated)',
@@ -122,8 +128,7 @@ def upload(aid: int, info: dict, variant: str = '') -> str:
     for v in info['volumes']:
         dst = os.path.join(src, f'{aid}-{v["file"]}')
         shutil.copyfile(os.path.join(src, v['local']), dst)
-        label = f'{info["title"]} {v["title"]}{f" [{variant}]" if variant else ""} (aid {aid})'.replace('#', '＃')
-        files.append(f'{dst}#{label}')
+        files.append(f'{dst}#{asset_label(aid, v, info["title"], info["author"], variant)}')
     gh_store('release', 'upload', tag, *files, '--clobber')
     return tag
 

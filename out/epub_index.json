@@ -249,5 +249,6 @@
 "2554":{"author":"叶月文","built_at":"2026-10-07T09:05:02.809344","repo":"mojimoon/wenku8-epub","src_update":"2019-11-16","tag":"book-2554","title":"Hello，Hello and Hello","total":2,"txt":"20191116","volumes":[{"chapters":13,"file":"v01.epub","images":16,"index":1,"size":1738180,"title":"第一卷"},{"chapters":10,"file":"v02.epub","images":12,"index":2,"size":1203722,"title":"第二卷～piece of mind～"}]},
 "2590":{"blocked":"copyright","checked":"2026-10-02","title":"黑暗医院：消失的病患"},
 "2601":{"blocked":"copyright","checked":"2026-10-02","title":"天气之子"},
+"2607":{"author":"三秋缒","built_at":"2026-10-07T09:41:54.486532","repo":"mojimoon/wenku8-epub","src_update":"2019-08-16","tag":"book-2607","title":"你的故事","total":1,"txt":"20190816","volumes":[{"chapters":12,"file":"v01.epub","images":0,"index":1,"size":200228,"title":"第一卷"}]},
 "3027":{"author":"八目迷","title":"通往夏天的隧道，再见的出口","variants":{"orig":{"built_at":"2026-10-03T15:22:08.641584","tag":"epub-var-15","total":2,"txt":"20230527","volumes":[{"chapters":9,"file":"orig-v01.epub","images":12,"index":1,"size":3009710,"title":"第一卷"},{"chapters":1,"file":"orig-v02.epub","images":0,"index":2,"size":371748,"title":"短篇"}]}}}
 }

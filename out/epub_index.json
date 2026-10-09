@@ -302,5 +302,6 @@
 "2590":{"blocked":"copyright","checked":"2026-10-02","title":"黑暗医院：消失的病患"},
 "2601":{"blocked":"copyright","checked":"2026-10-02","title":"天气之子"},
 "2607":{"author":"三秋缒","built_at":"2026-10-07T09:41:54.486532","repo":"mojimoon/wenku8-epub","src_update":"2019-08-16","tag":"book-2607","title":"你的故事","total":1,"txt":"20190816","volumes":[{"chapters":12,"file":"v01.epub","images":0,"index":1,"size":200228,"title":"第一卷"}]},
+"2969":{"author":"海空陆","built_at":"2026-10-09T04:02:08.781087","repo":"mojimoon/wenku8-epub","src_update":"2023-03-26","tag":"book-2969","title":"我和女友的妹妹接吻了","total":4,"txt":"20230326","volumes":[{"chapters":16,"file":"v01.epub","images":19,"index":1,"size":2303281,"title":"第一卷"},{"chapters":13,"file":"v02.epub","images":19,"index":2,"size":1797467,"title":"第二卷"},{"chapters":14,"file":"v03.epub","images":19,"index":3,"size":2052563,"title":"第三卷"},{"chapters":18,"file":"v04.epub","images":21,"index":4,"size":1909694,"title":"第四卷"}]},
 "3027":{"author":"八目迷","title":"通往夏天的隧道，再见的出口","variants":{"orig":{"built_at":"2026-10-03T15:22:08.641584","repo":"mojimoon/wenku8-epub","tag":"book-3027","total":2,"txt":"20230527","volumes":[{"chapters":9,"file":"orig-v01.epub","images":12,"index":1,"size":3009710,"title":"第一卷"},{"chapters":1,"file":"orig-v02.epub","images":0,"index":2,"size":371748,"title":"短篇"}]}}}
 }

@@ -254,7 +254,7 @@ function openLz(it){
 function issueUrl(it){
  var vs=($('rq-v').value||'').replace(/[^0-9,]/g,'')||'all';
  var body='aid: '+it.n+'\nvolumes: '+vs+'\nmax_side: '+$('rq-r').value+'\nimages: '+($('rq-i').checked?'no':'yes')
-  +'\n\n（由页面预填，直接提交即可；GitHub Actions 将自动生成并回复下载链接。）';
+  +'\n\n> 直接提交即可；GitHub Actions 将自动生成并回复下载链接。觉得好用的话记得点个 Star⭐';
  return 'https://github.com/'+REPO+'/issues/new?template=build-request.md&title='+encodeURIComponent('[build] '+it.n+' '+it.t)+'&body='+encodeURIComponent(body);
 }
 list.addEventListener('click',function(e){

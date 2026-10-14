@@ -2,7 +2,7 @@ name: Build EPUB on request
 
 # 页面上的「请求生成」会预填一个标题以 "[build]" 开头、标签为 build-request 的 Issue。
 # 本工作流把所有打开的 build-request Issue 当作队列，按创建顺序逐个生成分卷 EPUB、回复下载链接并关闭。
-# 防滥用（每用户 5 条/小时、10 条/天；全站每天新抓取 50 本）见 build_request.py。
+# 防滥用（每用户有效请求 5 条/小时、15 条/天，全部请求 30 条/天；全站每天新抓取 50 本）见 build_request.py。
 # 注意：issues / schedule 事件只会运行默认分支（main）上的工作流。
 on:
   issues:

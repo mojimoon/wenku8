@@ -12,8 +12,9 @@ Issue 正文是不可信内容：通过 GitHub API 读取，仅做严格解析�
 其他为原图/1600/1400/800/600/无图；每本书一个 Release（book-{aid}）。再次请求同一版本、同样的卷时直接回复。
 
 防滥用：
-  - 每个 GitHub 用户 1 小时内最多 5 条、24 小时内最多 10 条请求（按 Issue 创建时间计，含缓存命中与被拒绝的；
-    仓库所有者 / 成员 / 协作者不限），超出则回复并关闭
+  - 每个 GitHub 用户 1 小时内最多 5 条、24 小时内最多 12 条有效请求（按 Issue 创建时间计；有效 = 仍打开或以
+    completed 关闭，含缓存命中；被限流 / 被拒绝 / 生成失败的以 not planned 关闭，不计入），超出则回复并关闭；
+    24 小时内全部请求超过 20 条视为刷屏，直接关闭不回复（仓库所有者 / 成员 / 协作者不限）
   - 全站每 24 小时最多新抓取 50 本（只计需要抓取 wenku8 的请求，不含缓存命中与批量预生成，记录在
     out/request_builds.txt），超出的请求加上 queued 标签留在队列里，名额恢复后由之后的运行自动处理
   - 每次运行超过 --time-budget 分钟后不再开始新的请求（剩余的由下次运行继续）
@@ -36,7 +37,8 @@ GH_PROXY = 'https://gh-proxy.org/'
 REPO = os.environ.get('GITHUB_REPOSITORY', 'mojimoon/wenku8')
 MAX_SIDES = {0, 600, 800, 1000, 1400, 1600}
 BUILD_LOG = os.path.join('out', 'request_builds.txt')   # 每行: ISO 时间 aid #issue（仅新抓取的）
-USER_LIMITS = ((datetime.timedelta(hours=1), 5), (datetime.timedelta(hours=24), 10))
+USER_LIMITS = ((datetime.timedelta(hours=1), 5), (datetime.timedelta(hours=24), 12))   # 只计有效请求
+HARD_LIMIT = 20            # 每用户 24 小时内全部请求（含被拒的）的上限，
 GLOBAL_LIMIT = 50          # 每 24 小时新抓取的上限
 EXEMPT = {'OWNER', 'MEMBER', 'COLLABORATOR'}
 LABEL, QUEUED = 'build-request', 'queued'
@@ -120,20 +122,30 @@ def reply(number: int, text: str, close: str | None):
 
 # ─── 限额 ────────────────────────────────────────────
 
-def user_over_limit(issue: dict) -> str:
-    """该用户在这条 Issue 创建前的窗口内（含本条）的请求数超限时，返回说明。"""
+def counted(i: dict) -> bool:
+    """有效请求：仍在队列中或已成功；被限流 / 被拒绝 / 生成失败（not planned）和 duplicate 不计。"""
+    return i['state'] == 'open' or i.get('state_reason') == 'completed'
+
+
+def user_over_limit(issue: dict) -> tuple[str, bool]:
+    """该用户在这条 Issue 创建前的窗口内（含本条）的请求数超限时，返回 (说明, 是否静默关闭)。"""
     if issue.get('author_association') in EXEMPT:
-        return ''
+        return '', False
     login, created = issue['user']['login'], ts(issue['created_at'])
     since = (created - USER_LIMITS[-1][0]).strftime('%Y-%m-%dT%H:%M:%SZ')
-    mine = gh_api(f'repos/{REPO}/issues?creator={login}&labels={LABEL}&state=all&since={since}&per_page=100')
-    times = [ts(i['created_at']) for i in mine if 'pull_request' not in i]
+    mine = [i for i in gh_api(f'repos/{REPO}/issues?creator={login}&labels={LABEL}&state=all&since={since}&per_page=100')
+            if 'pull_request' not in i]
+    day = created - datetime.timedelta(hours=24)
+    if sum(day < ts(i['created_at']) <= created for i in mine) > HARD_LIMIT:
+        return '', True
+    times = [ts(i['created_at']) for i in mine if counted(i)]
     for window, limit in USER_LIMITS:
         n = sum(created - window < t <= created for t in times)
         if n > limit:
             hours = int(window.total_seconds() // 3600)
-            return f'请求过于频繁：每个账号 {hours} 小时内最多 {limit} 条（本条为第 {n} 条），请稍后再提交。'
-    return ''
+            return (f'请求过于频繁：每个账号 {hours} 小时内最多 {limit} 条有效请求（本条为第 {n} 条）。'
+                    '本条不计入次数，请稍后再提交。'), False
+    return '', False
 
 
 def fresh_builds_24h() -> int:
@@ -219,10 +231,13 @@ def main():
         labels = {l['name'] for l in issue.get('labels', [])}
         print(f'\n[request] #{number} {issue["title"]}（{issue["user"]["login"]}）')
         try:
-            why = user_over_limit(issue)
+            why, silent = user_over_limit(issue)
             if why:
                 print('    ' + why)
-                reply(number, why, 'not planned')
+                if silent:
+                    gh('issue', 'close', str(number), '--reason', 'not planned')
+                else:
+                    reply(number, why, 'not planned')
                 continue
             req = parse_request(issue.get('body') or '')
             text, fresh = process(req, allow_fresh=fresh_builds_24h() < GLOBAL_LIMIT)

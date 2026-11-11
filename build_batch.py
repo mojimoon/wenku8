@@ -15,7 +15,6 @@
 用法:
     python build_batch.py --max-novels 50 --time-budget 300   # 在 Actions 中
     python build_batch.py --aid 129 --no-upload                # 本地测试，不上传
-    python build_batch.py --check-blocked --time-budget 60     # 只检查详情页，标记版权下架的小说
 """
 
 import argparse
@@ -30,11 +29,10 @@ import time
 import pandas as pd
 
 from utils import Fetcher, LoginExpired
-from gen_epub import EPUB_OUT_DIR, CopyrightBlocked, book_url, build_novel, parse_detail
+from gen_epub import EPUB_OUT_DIR, CopyrightBlocked, build_novel
 
 MERGED_CSV = os.path.join('out', 'merged.csv')
 INDEX_FILE = os.path.join('out', 'epub_index.json')
-CHECKED_FILE = os.path.join('out', 'epub_checked.txt')   # 已检查、未下架的 aid（每行一个），避免重复检查
 REPO = os.environ.get('GITHUB_REPOSITORY', 'mojimoon/wenku8')
 # EPUB 存放仓库（Release 不出现在本仓库关注者的动态里）。需要对它有写权限的令牌 EPUB_TOKEN；未设置时仍发布到本仓库
 EPUB_REPO = os.environ.get('EPUB_REPO', 'mojimoon/wenku8-epub')
@@ -186,39 +184,6 @@ def record_blocked(index: dict, aid: int, title: str):
 
 # ─── 主流程 ──────────────────────────────────────────
 
-def check_blocked(fetcher: Fetcher, index: dict, budget: float):
-    """只抓详情页，把版权下架的小说记入索引（页面据此隐藏“请求生成”）。"""
-    start, found = time.time(), 0
-    checked = set()
-    if os.path.exists(CHECKED_FILE):
-        with open(CHECKED_FILE, encoding='utf-8') as f:
-            checked = {int(x) for x in f.read().split()}
-    todo = [a for a in sorted(txt_only_targets()) if str(a) not in index and a not in checked]
-    print(f'[check] 待检查 {len(todo)} 本')
-    for i, aid in enumerate(todo, 1):
-        if budget and (time.time() - start) / 60 > budget:
-            print('[check] 达到时间预算，停止')
-            break
-        try:
-            d = parse_detail(fetcher.get(book_url(aid), lambda h: 'id="content"' in h))
-        except LoginExpired:
-            raise
-        except Exception as e:
-            print(f'[check] aid={aid} 失败: {e}')
-            continue
-        if d.get('blocked'):
-            record_blocked(index, aid, d.get('title', ''))
-            found += 1
-            print(f'[check] aid={aid} {d.get("title", "")} 版权下架')
-            save_index(index)
-        else:
-            with open(CHECKED_FILE, 'a', encoding='utf-8') as f:
-                f.write(f'{aid}\n')
-        if i % 100 == 0:
-            print(f'[check] {i}/{len(todo)}，下架 {found}')
-    print(f'[check] 完成，新发现下架 {found} 本')
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--aid', type=int, nargs='*', help='只处理指定 aid（忽略状态判断）')
@@ -226,19 +191,10 @@ def main():
     ap.add_argument('--time-budget', type=float, default=0, help='分钟；超时后不再开始新的小说')
     ap.add_argument('--scraper', default='auto')
     ap.add_argument('--no-upload', action='store_true')
-    ap.add_argument('--check-blocked', action='store_true', help='只检查并标记版权下架的小说')
     args = ap.parse_args()
 
     index = load_index()
     fetcher = Fetcher(args.scraper)
-    if args.check_blocked:
-        try:
-            check_blocked(fetcher, index, args.time_budget)
-        finally:
-            save_index(index)
-            fetcher.close()
-        return
-
     known = txt_only_targets()
     if args.aid:
         targets = [(a, known.get(a, ('', ''))[0]) for a in args.aid]

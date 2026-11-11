@@ -7,6 +7,9 @@ import sys
 import re
 import json
 import os
+import string
+from collections import Counter
+
 import pandas as pd
 
 from merge import merge, read_dl
@@ -244,11 +247,64 @@ def _s(v):
     return '' if v is None or (isinstance(v, float) and pd.isna(v)) else str(v).strip()
 
 VARIANT_ORDER = ['orig', '1600', '1400', '1000', '800', '600', 'noimg']
+STORE = 'mojimoon/wenku8-epub'   # 重制版 Release 的默认存放仓库（与之不同时才写 r）
+TXT_PREFIX = 'ixinzhi/lightnovel-'
+TAG_CODES = string.digits + string.ascii_letters   # 标签 -> 单个字符（wenku8 固定约 50 个标签）
+
+
+def compact_versions(aid: str, e: dict) -> list:
+    """重制版各版本（按分辨率从高到低：原图 > 1600 > 1400 > 1000（默认，批量生成）> 800 > 600 > 无图）。
+    省略可推导的字段：d 缺省为 1000，t 缺省为 book-{aid}，r 缺省为 STORE；卷为 [卷名, KB]，
+    卷序号不是 1..n 时才写 i；附件名由前端按 {aid}-[{d}-]v{序号:02}.epub 拼出。"""
+    versions = []
+    slots = [('1000', e)] + list(e.get('variants', {}).items())
+    for name, slot in sorted(slots, key=lambda x: VARIANT_ORDER.index(x[0]) if x[0] in VARIANT_ORDER else 99):
+        vols = slot.get('volumes')
+        if not vols or not slot.get('tag'):
+            continue
+        ver = {'u': (slot.get('built_at') or '')[:10], 'v': [[v['title'], -(-v['size'] // 1024)] for v in vols]}
+        if name != '1000':
+            ver['d'] = name
+        if slot['tag'] != f'book-{aid}':
+            ver['t'] = slot['tag']
+        if slot.get('repo', 'mojimoon/wenku8') != STORE:
+            ver['r'] = slot.get('repo', 'mojimoon/wenku8')
+        idx = [v['index'] for v in vols]
+        if idx != list(range(1, len(vols) + 1)):
+            ver['i'] = idx
+        if len(vols) < slot.get('total', 0):
+            ver['n'] = slot['total']   # 只生成了部分卷
+        versions.append(ver)
+    return versions
+
+
+def compact_txt(item: dict, url: str) -> str:
+    """TXT 源 ixinzhi/lightnovel-{年份}/master/{书名(别名)} - {作者} - {日期}.epub：
+    文件名可由条目推出时只写年份段（如 2025），否则写 年份段/文件名；其他来源写完整地址。"""
+    if not url.startswith(RAW_PREFIX):
+        return url
+    m = re.fullmatch(re.escape(TXT_PREFIX) + r'([\dto]+)/master/(.+)', url[len(RAW_PREFIX):])
+    if not m:
+        return url
+    t = item['t'] + (f"({item['a']})" if item['a'] else '')
+    if m.group(2) == f"{t} - {item['au']} - {item['xu'].replace('-', '')}.epub":
+        return m.group(1)
+    return m.group(1) + '/' + m.group(2)
+
+
+def status_code(st: str):
+    """'已完结/ 已动画化' -> 1|2：bit0 已完结，bit1 已动画化；未知 -> ''"""
+    return '' if not st else ('已完结' in st) + 2 * ('动画化' in st)
 
 
 def create_data():
-    """合并后的条目 + 重制版 EPUB 索引 -> 页面内嵌的 JSON 数据。"""
+    """合并后的条目 + 重制版 EPUB 索引 + wenku8 目录信息 -> 页面内嵌的 JSON 数据（字段说明见 source/template.html）。"""
     df = pd.read_csv(MERGED_CSV, encoding='utf-8-sig', dtype=str)
+    cat = catalog.books(catalog.load_catalog())
+    tags = [t for t, _ in Counter(t for b in cat.values() for t in b.get('tags', '').split()).most_common()]
+    tag_code = dict(zip(tags, TAG_CODES))   # ponytail: 超过 62 个标签时多出的不编码，到时再扩充字母表
+    pubs = [p for p, _ in Counter(b.get('publisher', '') for b in cat.values()).most_common() if p]
+    pub_idx = {p: i for i, p in enumerate(pubs)}
 
     built, blocked = {}, set()
     if os.path.exists(EPUB_INDEX_FILE):
@@ -256,43 +312,39 @@ def create_data():
             for aid, e in json.load(f).items():
                 if e.get('blocked'):
                     blocked.add(aid)
-                    continue
-                # 各版本按分辨率从高到低：原图 > 1600 > 1400 > 1000（默认，批量生成）> 800 > 600 > 无图
-                versions = []
-                slots = [('1000', e)] + list(e.get('variants', {}).items())
-                for name, slot in sorted(slots, key=lambda x: VARIANT_ORDER.index(x[0]) if x[0] in VARIANT_ORDER else 99):
-                    if slot.get('volumes') and slot.get('tag'):
-                        ver = {'d': name, 't': slot['tag'], 'u': (slot.get('built_at') or '')[:10],
-                               'r': slot.get('repo', 'mojimoon/wenku8'),
-                               'v': [[v['file'], v['title'], v['size']] for v in slot['volumes']]}
-                        if len(slot['volumes']) < slot.get('total', 0):
-                            ver['n'] = slot['total']   # 只生成了部分卷
-                        versions.append(ver)
-                if versions:
-                    built[aid] = versions
+                elif vs := compact_versions(aid, e):
+                    built[aid] = vs
 
     items = []
     for row in df.to_dict('records'):
-        link, txt = _s(row['novel_link']), _s(row['download_url'])
+        link = _s(row['novel_link'])
         m = re.search(r'/book/(\d+)', link)
         aid = m.group(1) if m else ''
-        item = {'t': _s(row['main']), 'a': _s(row['alt']), 'au': _s(row['author']), 'u': _s(row['update']),
+        # 显示用的更新日期 = max(du, xu)，由前端计算
+        item = {'t': _s(row['main']), 'a': _s(row['alt']), 'au': _s(row['author']),
                 'n': aid, 'l': _s(row['dl_label']), 'p': _s(row['dl_pwd']), 'v': _s(row['volume']),
-                'r': _s(row['dl_remark']), 'du': _s(row['dl_update']), 'xu': _s(row.get('txt_update')),
-                'x': txt[len(RAW_PREFIX):] if txt.startswith(RAW_PREFIX) else txt}
+                'r': _s(row['dl_remark']), 'du': _s(row['dl_update']), 'xu': _s(row.get('txt_update'))}
+        item['x'] = compact_txt(item, _s(row['download_url']))
         if item['v']:
             vs = replace_chinese_numerals(item['v']).strip()   # “第七卷”->“7”，用于列表按钮
             if vs != item['v']:
                 item['vs'] = vs
         if aid in built and not item['l']:   # 重制版仅用于没有蓝奏 EPUB 源的条目
-            item['b'] = 1
-            item['bu'] = max(v['u'] for v in built[aid])   # 最近重制日期：仅“重制 EPUB”标签页用于排序与显示
+            item['B'] = built[aid]
         elif aid in blocked and not item['l']:   # wenku8 版权下架，无法重制
             item['k'] = 1
+        if b := cat.get(int(aid) if aid else -1):
+            # wenku8 目录：w 最后更新，c 字数（K），s 状态码，g 标签码，f 文库序号，nc 无封面（封面地址由 aid 推出）
+            # 版权下架的书目录里没有更新、字数、状态
+            item.update({'w': b.get('update', ''), 'c': int(b['length'][:-1]) if b.get('length', '').endswith('K') else '',
+                         's': status_code(b.get('status', '')),
+                         'g': ''.join(tag_code.get(t, '') for t in b.get('tags', '').split()),
+                         'f': pub_idx.get(b.get('publisher'), '')})
+            if not b.get('cover_url', '').endswith(f'/{aid}s.jpg'):
+                item['nc'] = 1
         items.append({k: v for k, v in item.items() if v != ''})
-    only_built = {it['n']: built[it['n']] for it in items if it.get('b')}
     lz = 'https://' + read_dl()[0].rstrip('/') + '/'
-    return {'items': items, 'built': only_built, 'lz': lz, 'gh': GH_PROXY}
+    return {'items': items, 'lz': lz, 'gh': GH_PROXY, 'st': STORE, 'tg': tags[:len(TAG_CODES)], 'pb': pubs}
 
 def create_html():
     with open(TEMPLATE_FILE, 'r', encoding='utf-8') as f:
@@ -316,8 +368,8 @@ def main():
     scrape()
     if _scraper != 'none':
         fetcher = Fetcher(_scraper, fallback=True)
-        try:   # 增量刷新 wenku8 全站目录（新书/更新都在最近更新的前几页），用于把新条目对应到 aid
-            catalog.refresh(fetcher, pages=3)
+        try:   # 增量刷新 wenku8 全站目录（新书/更新都在最近更新的前几页）：对应 aid，并提供更新日期、字数、标签等
+            catalog.refresh(fetcher, pages=5)
         except Exception as e:
             print(f'[WARN] 目录刷新失败（沿用现有目录）: {e}')
         finally:

@@ -90,6 +90,15 @@ select,.fi{height:32px;border:1px solid var(--line);border-radius:6px;background
 .vg summary .btn{margin-left:auto;font-weight:400}
 .vi{display:inline-block;min-width:1.6em;margin-right:6px;color:var(--muted);font-size:.78rem;font-variant-numeric:tabular-nums}
 details summary{cursor:pointer;padding:10px 12px;font-size:.85rem;font-weight:600;background:var(--hover)}
+.fp{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:4px 0 6px}
+.fp[hidden]{display:none}
+.tgs{display:flex;flex-wrap:wrap;gap:5px;width:100%}
+.tg{height:24px;padding:0 9px;border:1px solid var(--line);border-radius:12px;background:var(--card);cursor:pointer;font-size:.78rem}
+.tg[aria-pressed=true]{background:var(--acc);border-color:var(--acc);color:var(--acc-fg)}
+.info{display:flex;gap:12px;padding:10px 12px;align-items:flex-start}
+.info img{width:84px;aspect-ratio:3/4;object-fit:cover;border-radius:6px;flex:none;background:var(--hover)}
+.info dl{margin:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;font-size:.85rem;align-items:center}
+.info dt{color:var(--muted)}.info dd{margin:0;display:flex;flex-wrap:wrap;gap:4px}
 @media(max-width:640px){
  body{font-size:14px}
  header{padding-top:12px}
@@ -130,9 +139,18 @@ details summary{cursor:pointer;padding:10px 12px;font-size:.85rem;font-weight:60
   <button class="chip" data-f="epub" aria-pressed="false">蓝奏 EPUB</button>
   <button class="chip" data-f="new" aria-pressed="false">重制 EPUB</button>
   <button class="chip" data-f="txt" aria-pressed="false">仅 TXT</button>
+  <button class="chip" id="fb" aria-expanded="false" aria-controls="fp">筛选</button>
   <button class="chip" id="rnd">随机</button>
   <span class="cnt" id="cnt"></span>
  </div>
+</div>
+<div class="fp" id="fp" hidden>
+ <select id="fs" aria-label="状态"><option value="">状态</option><option value="1">已完结</option><option value="0">连载中</option><option value="2">已动画化</option></select>
+ <select id="fc" aria-label="字数"><option value="">字数</option><option value="0-100">10 万字以下</option><option value="100-300">10–30 万字</option><option value="300-1000">30–100 万字</option><option value="1000-">100 万字以上</option></select>
+ <select id="ff" aria-label="文库"><option value="">文库</option></select>
+ <select id="fo" aria-label="排序"><option value="">按更新日期</option><option value="w">按文库更新</option><option value="c">按字数</option></select>
+ <button class="chip" id="fx">清除筛选</button>
+ <div class="tgs" id="tgs" title="标签（同时满足所选的全部标签）"></div>
 </div>
 <ul class="list" id="list"></ul>
 <div id="more"></div>
@@ -148,13 +166,18 @@ details summary{cursor:pointer;padding:10px 12px;font-size:.85rem;font-weight:60
 <script>
 (function(){
 'use strict';
+// 数据（main.py create_data）：t 书名 a 别名 au 作者 n aid；蓝奏 l 链接 p 密码 v 最新卷 r 注释 du 日期；TXT x 地址 xu 日期；
+// B 重制版各版本；k 版权下架；wenku8 目录：w 最后更新 c 字数(K) s 状态(bit0 完结 bit1 动画化) g 标签码 f 文库序号 nc 无封面
 var D=JSON.parse(document.getElementById('data').textContent),
-    items=D.items,built=D.built,LZ=D.lz,GH=D.gh,REPO='mojimoon/wenku8',
+    items=D.items,LZ=D.lz,GH=D.gh,ST=D.st,REPO='mojimoon/wenku8',TC='0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
     $=function(i){return document.getElementById(i)},
-    list=$('list'),CH=60,shown=0,view=items,flt='all',q='',qa='';
+    list=$('list'),CH=60,shown=0,view=items,flt='all',q='',qa='',F={s:'',c:'',f:'',o:'',g:''};
 var esc=function(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
 var norm=function(s){return s.toLowerCase().replace(/[\s　]+/g,'')};
-items.forEach(function(it,i){it.i=i;it.s=norm(it.t+(it.a||'')+(it.au||''))});
+items.forEach(function(it,i){it.i=i;it.q=norm(it.t+(it.a||'')+(it.au||''));
+ it.u=(it.du||'')>(it.xu||'')?it.du:it.xu;   // 显示的更新日期：蓝奏 / TXT 中较晚的
+ if(it.B){it.b=1;it.bu=it.B.reduce(function(m,b){return b.u>m?b.u:m},'')}   // 最近重制日期
+});
 
 // ── 复制 / 提示 ──
 var CPI='<svg><use href="#i-copy"/></svg>';
@@ -178,16 +201,41 @@ function applyFilter(){
   if(flt==='epub'&&!it.l)return false;
   if(flt==='new'&&!it.b)return false;
   if(flt==='txt'&&(it.l||it.b||!it.x))return false;   // 仅 TXT：排除已有蓝奏或重制版的
-  return it.n===qa||(q?it.s.indexOf(q)>-1:!qa);   // q 为空且 qa 有值：只匹配 aid
+  if(!match(it))return false;
+  return it.n===qa||(q?it.q.indexOf(q)>-1:!qa);   // q 为空且 qa 有值：只匹配 aid
  });
- // 默认按内容更新日期（蓝奏/TXT，数据已排好序）；“重制 EPUB”按最近重制日期
- if(flt==='new')view.sort(function(a,b){return a.bu<b.bu?1:a.bu>b.bu?-1:a.i-b.i});
+ // 默认按内容更新日期（蓝奏/TXT，数据已排好序）；“重制 EPUB”按最近重制日期；也可按文库更新 / 字数
+ var key=F.o||(flt==='new'?'bu':'');
+ if(key)view.sort(function(a,b){var x=a[key]||'',y=b[key]||'';return x<y?1:x>y?-1:a.i-b.i});
  if(qa)view.sort(function(a,b){return(b.n===qa)-(a.n===qa)});   // aid 精确匹配置顶
  $('cnt').textContent=view.length+' / '+items.length;
  list.textContent='';shown=0;
  if(!view.length){list.innerHTML='<li class="empty">没有匹配的结果</li>';return}
  more();
 }
+// 筛选面板：状态、字数、文库、标签（全部满足）
+function match(it){
+ if(F.s&&(it.s==null||(F.s==='1'?!(it.s&1):F.s==='0'?it.s&1:!(it.s&2))))return false;
+ if(F.c){var r=F.c.split('-');if(it.c==null||it.c<+r[0]||(r[1]&&it.c>=+r[1]))return false}
+ if(F.f&&it.f!==+F.f)return false;
+ for(var j=0;j<F.g.length;j++)if(!it.g||it.g.indexOf(F.g[j])<0)return false;
+ return true;
+}
+var fmtLen=function(c){return c==null?'':c>=10?+(c/10).toFixed(c>=1000?0:1)+' 万字':c+' 千字'};
+$('ff').insertAdjacentHTML('beforeend',D.pb.map(function(p,i){return '<option value="'+i+'">'+esc(p)+'</option>'}).join(''));
+$('tgs').innerHTML=D.tg.map(function(t,i){return '<button class="tg" data-g="'+TC[i]+'" aria-pressed="false">'+esc(t)+'</button>'}).join('');
+function syncF(){
+ $('fs').value=F.s;$('fc').value=F.c;$('ff').value=F.f;$('fo').value=F.o;
+ [].forEach.call($('tgs').children,function(b){b.setAttribute('aria-pressed',F.g.indexOf(b.dataset.g)>-1)});
+ var n=!!F.s+!!F.c+!!F.f+F.g.length;$('fb').textContent='筛选'+(n?' · '+n:'');
+ $('fb').setAttribute('aria-pressed',n>0);
+}
+['fs','fc','ff','fo'].forEach(function(id){$(id).addEventListener('change',function(){F[id[1]]=this.value;syncF();applyFilter()})});
+$('tgs').addEventListener('click',function(e){var b=e.target.closest('.tg');if(!b)return;var c=b.dataset.g;
+ F.g=F.g.indexOf(c)>-1?F.g.replace(c,''):F.g+c;syncF();applyFilter()});
+$('fx').addEventListener('click',function(){F={s:'',c:'',f:'',o:'',g:''};syncF();applyFilter()});
+function showF(v){$('fp').hidden=!v;$('fb').setAttribute('aria-expanded',v)}
+$('fb').addEventListener('click',function(){showF($('fp').hidden)});
 function btns(it){
  var h='';
  if(it.l)h+='<button class="tb e" data-a="lz" title="复制密码并打开蓝奏云">EPUB'+(it.v?' <b>'+esc(it.vs||it.v)+'</b>':'')+'</button>';
@@ -200,7 +248,7 @@ function more(){
  var end=Math.min(shown+CH,view.length),h='';
  for(var k=shown;k<end;k++){var it=view[k],sa=[it.a,it.au].filter(Boolean).map(esc).join(' · ');
   h+='<li data-i="'+it.i+'"><div class="m">'+(qa&&it.n===qa?'<i class="p k">aid '+it.n+'</i> ':'')+'<b>'+esc(it.t)+'</b>'+(it.a?'<small>'+esc(it.a)+'</small>':'')+'</div>'
-   +'<div class="au">'+esc(it.au||'')+'</div><div class="u">'+esc((flt==='new'&&it.bu)||it.u||'')+'</div><div class="sb">'+sa+'</div>'
+   +'<div class="au">'+esc(it.au||'')+'</div><div class="u">'+esc(F.o==='c'?fmtLen(it.c):F.o==='w'?it.w||'':(flt==='new'&&it.bu)||it.u||'')+'</div><div class="sb">'+sa+'</div>'
    +'<div class="b">'+btns(it)+'</div></li>';
  }
  list.insertAdjacentHTML('beforeend',h);shown=end;
@@ -226,15 +274,19 @@ $('theme').addEventListener('click',function(){
 
 // ── 动作 ──
 var proxy=function(u){return GH+encodeURI(u)};
-var txtUrl=function(it){return proxy('https://raw.githubusercontent.com/'+it.x)};
-var volUrl=function(aid,b,f){return proxy('https://github.com/'+b.r+'/releases/download/'+b.t+'/'+aid+'-'+f)};
-var fmt=function(b){return b>=1048576?(b/1048576).toFixed(1)+' MB':Math.max(1,Math.round(b/1024))+' KB'};
+// x：完整地址；或 ixinzhi/lightnovel-{年份段}/master/ 下的文件（只有年份段时文件名为“书名(别名) - 作者 - 日期.epub”）
+var txtUrl=function(it){var x=it.x,k=x.indexOf('/');
+ if(/^https?:/.test(x))return proxy(x);
+ return proxy('https://raw.githubusercontent.com/ixinzhi/lightnovel-'+(k<0?x+'/master/'+it.t+(it.a?'('+it.a+')':'')+' - '+(it.au||'')+' - '+it.xu.replace(/-/g,'')+'.epub':x.slice(0,k)+'/master/'+x.slice(k+1)))};
+// 重制版卷 v=[卷名, KB]，序号默认 1..n（否则见 i）；附件 {aid}-[{版本}-]v{序号}.epub，Release 默认 ST@book-{aid}
+var vno=function(b,k){return b.i?b.i[k]:k+1};
+var volUrl=function(aid,b,k){return proxy('https://github.com/'+(b.r||ST)+'/releases/download/'+(b.t||'book-'+aid)+'/'+aid+'-'+(b.d?b.d+'-':'')+'v'+('0'+vno(b,k)).slice(-2)+'.epub')};
+var fmt=function(kb){return kb>=1024?(kb/1024).toFixed(1)+' MB':kb+' KB'};
 function go(u){var a=document.createElement('a');a.href=u;a.rel='noopener';document.body.appendChild(a);a.click();a.remove()}
 // GitHub 附件名只能是 ASCII：经 gh-proxy（允许跨域）取回后按“[aid-卷序号] 书名 - 卷名 - 作者.epub”保存，失败时直接打开链接
-var vno=function(f,k){return +((f.match(/v(\d+)\.epub$/)||[0,k+1])[1])};
-function volName(it,v,k){
- var n=('0'+vno(v[0],k)).slice(-2);
- return ('['+it.n+'-'+n+'] '+[it.t,v[1],it.au].filter(Boolean).join(' - ')).replace(/[\\\/:*?"<>|]/g,'_')+'.epub';
+function volName(it,b,k){
+ var n=('0'+vno(b,k)).slice(-2);
+ return ('['+it.n+'-'+n+'] '+[it.t,b.v[k][0],it.au].filter(Boolean).join(' - ')).replace(/[\\\/:*?"<>|]/g,'_')+'.epub';
 }
 function save(u,name){
  return fetch(u).then(function(r){if(!r.ok)throw r.status;return r.blob()}).then(function(bl){
@@ -244,8 +296,8 @@ function save(u,name){
 }
 function saveAll(it,b){
  var i=0;(function next(){if(i>=b.v.length){toast('全部 '+b.v.length+' 卷已下载');return}
-  var v=b.v[i];toast('正在下载 '+(i+1)+' / '+b.v.length+'：'+v[1]);
-  save(volUrl(it.n,b,v[0]),volName(it,v,i)).then(function(){i++;setTimeout(next,400)})})();
+  toast('正在下载 '+(i+1)+' / '+b.v.length+'：'+b.v[i][0]);
+  save(volUrl(it.n,b,i),volName(it,b,i)).then(function(){i++;setTimeout(next,400)})})();
 }
 function openLz(it){
  if(it.p){copy(it.p);toast('密码 '+it.p+' 已复制')}
@@ -270,9 +322,17 @@ list.addEventListener('click',function(e){
 
 // ── 详情弹窗（左：信息，右：按钮） ──
 var dlg=$('dlg'),cur=null;
+var stText=function(s){return s==null?'':(s&1?'已完结':'连载中')+(s&2?' · 已动画化':'')};
+function infoSec(it){
+ if(it.w==null&&it.g==null&&it.f==null)return '';   // 没有对应到 wenku8 目录
+ var r=function(k,v){return v?'<dt>'+k+'</dt><dd>'+v+'</dd>':''},n=+it.n;
+ return '<div class="sec info">'+(it.nc?'':'<img src="https://img.wenku8.com/image/'+Math.floor(n/1000)+'/'+n+'/'+n+'s.jpg" alt="封面" loading="lazy" referrerpolicy="no-referrer">')
+  +'<dl>'+r('文库',it.f!=null&&esc(D.pb[it.f]))+r('状态',stText(it.s))+r('字数',fmtLen(it.c))+r('文库更新',esc(it.w||''))
+  +r('标签',(it.g||'').split('').map(function(c){return '<button class="tg" data-a="tag" data-g="'+c+'" title="只看此标签">'+esc(D.tg[TC.indexOf(c)])+'</button>'}).join(''))+'</dl></div>';
+}
 var VN={'orig':'插图原图','1600':'插图 1600px','1400':'插图 1400px','1000':'插图 1000px','800':'插图 800px','600':'插图 600px','noimg':'无插图'};
 function openDlg(it){
- cur=it;var h='',bs=it.n&&built[it.n]||[];
+ cur=it;var h=infoSec(it),bs=it.B||[];
  $('dt').innerHTML=esc(it.t)+cp(it.t)+'<small>'+(it.a?esc(it.a)+cp(it.a)+' · ':'')+(it.au?esc(it.au)+cp(it.au)+' · ':'')+esc(it.u||'')+'</small>';
  $('dw').style.display=it.n?'inline-flex':'none';
  if(it.n)$('dw').href='https://www.wenku8.net/book/'+it.n+'.htm';else $('dw').removeAttribute('href');
@@ -282,9 +342,9 @@ function openDlg(it){
  }
  // 重制版：每个分辨率一个可折叠分组（已按分辨率从高到低排序），默认展开最高的
  bs.forEach(function(b,bi){
-  h+='<div class="sec"><details class="vg"'+(bi?'':' open')+'><summary><span class="rl"><i class="p n">重制</i>'+VN[b.d]+'<small>'+[b.u,b.v.length+(b.n?' / '+b.n:'')+' 卷'].filter(Boolean).join(' · ')+'</small></span>'
+  h+='<div class="sec"><details class="vg"'+(bi?'':' open')+'><summary><span class="rl"><i class="p n">重制</i>'+VN[b.d||'1000']+'<small>'+[b.u,b.v.length+(b.n?' / '+b.n:'')+' 卷'].filter(Boolean).join(' · ')+'</small></span>'
    +(b.v.length>1?'<button class="btn s" data-a="all" data-k="'+bi+'">依次下载全部</button>':'')+'</summary>';
-  b.v.forEach(function(v,k){h+='<div class="r"><div class="rl"><span class="vi" title="卷序号（目录中的顺序）">'+vno(v[0],k)+'</span>'+esc(v[1])+'<small>'+fmt(v[2])+'</small></div><div class="rr"><a class="btn s" data-a="dl" data-k="'+bi+'" data-j="'+k+'" href="'+esc(volUrl(it.n,b,v[0]))+'">下载</a></div></div>'});
+  b.v.forEach(function(v,k){h+='<div class="r"><div class="rl"><span class="vi" title="卷序号（目录中的顺序）">'+vno(b,k)+'</span>'+esc(v[0])+'<small>'+fmt(v[1])+'</small></div><div class="rr"><a class="btn s" data-a="dl" data-k="'+bi+'" data-j="'+k+'" href="'+esc(volUrl(it.n,b,k))+'">下载</a></div></div>'});
   h+=(b.v.length>1?'<div class="note">“依次下载全部”会逐卷下载，如被浏览器拦截请允许“多个文件下载”。文件名为“[aid-卷序号] 书名 - 卷名 - 作者.epub”。</div>':'')
    +(b.n?'<div class="note">已生成 '+b.v.length+' / '+b.n+' 卷，其余卷可在下方请求生成。</div>':'')+'</details></div>';
  });
@@ -312,10 +372,11 @@ dlg.addEventListener('click',function(e){if(e.target===dlg)dlg.close()});
 $('db').addEventListener('click',function(e){
  var t=e.target.closest('[data-a]');if(!t)return;
  if(t.closest('summary'))e.preventDefault();   // 标题行里的按钮不触发折叠
- var a=t.dataset.a,b=(built[cur.n]||[])[t.dataset.k||0];
+ var a=t.dataset.a,b=(cur.B||[])[t.dataset.k||0];
  if(a==='lz')openLz(cur);
  else if(a==='all')saveAll(cur,b);
- else if(a==='dl'){e.preventDefault();var v=b.v[t.dataset.j];toast('正在下载：'+v[1]);save(t.href,volName(cur,v,+t.dataset.j))}
+ else if(a==='dl'){e.preventDefault();toast('正在下载：'+b.v[t.dataset.j][0]);save(t.href,volName(cur,b,+t.dataset.j))}
+ else if(a==='tag'){F.g=t.dataset.g;syncF();showF(true);dlg.close();applyFilter()}
  else if(a==='req')window.open(issueUrl(cur),'_blank','noopener');
 });
 

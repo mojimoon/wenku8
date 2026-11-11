@@ -1,0 +1,37 @@
+name: Archive EPUB
+
+# 把重制版 EPUB（默认 1000px 版本）从 Release 归档到 mojimoon/wenku8-epub 仓库本身：{年份}/{aid}-{书名}-{作者}/{书名} {卷序号} - {卷名} - {作者}.epub
+# 无状态、增量：每次对比仓库现有文件与 out/epub_index.json，只补缺失/变化的卷、删除过期的。Release 保留不动。
+# 首次运行约 12GB，分批推送（每批 ≤1GB），超过时间预算的部分由下次运行继续。
+on:
+  schedule:
+    - cron: '17 5 * * *'           # 每天一次，在批量生成（01:43 起）之后
+  workflow_dispatch:
+    inputs:
+      time_budget:
+        description: '时间预算（分钟）：超过后不再开始新的一批'
+        type: number
+        default: 300
+
+permissions:
+  contents: read
+
+concurrency:
+  group: archive
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      EPUB_TOKEN: ${{ secrets.EPUB_REPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Archive
+        run: python archive.py --time-budget ${{ inputs.time_budget || 300 }}

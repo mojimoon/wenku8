@@ -5,7 +5,7 @@ name: Archive EPUB
 # 首次运行约 12GB，分批推送（每批 ≤1GB），超过时间预算的部分由下次运行继续。
 on:
   schedule:
-    - cron: '17 5 * * *'           # 每天一次，在批量生成（01:43 起）之后
+    - cron: '17 5 * * 4'           # 每周一次，在批量生成（01:43 起）之后
   workflow_dispatch:
     inputs:
       time_budget:
